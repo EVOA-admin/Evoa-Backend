@@ -1,5 +1,5 @@
-import { IsEmail, IsString, MinLength, IsEnum, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../users/entities/user.entity';
 
 export class SignupDto {
@@ -7,7 +7,7 @@ export class SignupDto {
     @IsEmail()
     email: string;
 
-    @ApiProperty({ example: 'Password123!' })
+    @ApiProperty({ example: 'SecurePassword123!' })
     @IsString()
     @MinLength(8)
     password: string;
@@ -16,9 +16,9 @@ export class SignupDto {
     @IsString()
     fullName: string;
 
-    @ApiProperty({ enum: UserRole, example: UserRole.VIEWER, required: false })
-    @IsEnum(UserRole)
+    @ApiPropertyOptional({ enum: UserRole, example: UserRole.VIEWER })
     @IsOptional()
+    @IsEnum(UserRole)
     role?: UserRole;
 }
 
@@ -27,13 +27,13 @@ export class LoginDto {
     @IsEmail()
     email: string;
 
-    @ApiProperty({ example: 'Password123!' })
+    @ApiProperty({ example: 'SecurePassword123!' })
     @IsString()
     password: string;
 }
 
 export class GoogleAuthDto {
-    @ApiProperty({ description: 'Google ID token' })
+    @ApiProperty({ example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6...' })
     @IsString()
     idToken: string;
 }

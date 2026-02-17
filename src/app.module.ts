@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { dataSourceOptions } from './config/database.config';
+import { validate } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ReelsModule } from './reels/reels.module';
@@ -18,6 +19,7 @@ import { NotificationsModule } from './notifications/notifications.module';
         ConfigModule.forRoot({
             isGlobal: true,
             envFilePath: '.env',
+            validate,
         }),
         TypeOrmModule.forRoot(dataSourceOptions),
         ThrottlerModule.forRoot([

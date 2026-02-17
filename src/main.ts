@@ -4,17 +4,25 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import compression from 'compression';
 import helmet from 'helmet';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
+    // Global API prefix
+    app.setGlobalPrefix('api');
+
     // Security
     app.use(helmet());
 
-    // CORS
+    // CORS - Support multiple origins
+    const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || ['http://localhost:5173'];
     app.enableCors({
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origin: corsOrigins,
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
     // Compression
@@ -28,6 +36,12 @@ async function bootstrap() {
             transform: true,
         }),
     );
+
+    // Global exception filter
+    app.useGlobalFilters(new AllExceptionsFilter());
+
+    // Global response interceptor
+    app.useGlobalInterceptors(new TransformInterceptor());
 
     // Swagger API Documentation
     const config = new DocumentBuilder()
@@ -46,7 +60,7 @@ async function bootstrap() {
         .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document);
+    SwaggerModule.setup('api-docs', app, document);
 
     // Health check endpoint
     app.getHttpAdapter().get('/health', (req, res) => {
@@ -63,8 +77,8 @@ async function bootstrap() {
     console.log(`
   🚀 EVOA Backend is running!
   
-  📍 API: http://localhost:${port}
-  📚 Swagger Docs: http://localhost:${port}/api
+  📍 API: http://localhost:${port}/api
+  📚 Swagger Docs: http://localhost:${port}/api-docs
   ❤️  Health Check: http://localhost:${port}/health
   
   Environment: ${process.env.NODE_ENV || 'development'}

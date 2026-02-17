@@ -3,6 +3,8 @@ import { Startup } from '../../startups/entities/startup.entity';
 import { ReelLike } from '../../reels/entities/reel-like.entity';
 import { ReelComment } from '../../reels/entities/reel-comment.entity';
 import { ReelShare } from '../../reels/entities/reel-share.entity';
+import { ReelSave } from '../../reels/entities/reel-save.entity';
+import { ReelView } from '../../reels/entities/reel-view.entity';
 import { Follow } from '../../startups/entities/follow.entity';
 import { Meeting } from '../../meetings/entities/meeting.entity';
 import { Notification } from '../../notifications/entities/notification.entity';
@@ -79,6 +81,12 @@ export class User {
 
     @OneToMany(() => ReelShare, (share) => share.user)
     reelShares: ReelShare[];
+
+    @OneToMany(() => ReelSave, (save) => save.user)
+    reelSaves: ReelSave[];
+
+    @OneToMany(() => ReelView, (view) => view.user)
+    reelViews: ReelView[];
 
     @OneToMany(() => Follow, (follow) => follow.follower)
     follows: Follow[];

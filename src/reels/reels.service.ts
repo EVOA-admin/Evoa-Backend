@@ -5,6 +5,8 @@ import { Reel } from './entities/reel.entity';
 import { ReelLike } from './entities/reel-like.entity';
 import { ReelComment } from './entities/reel-comment.entity';
 import { ReelShare } from './entities/reel-share.entity';
+import { ReelSave } from './entities/reel-save.entity';
+import { ReelView } from './entities/reel-view.entity';
 import { Follow } from '../startups/entities/follow.entity';
 import { RedisService } from '../config/redis.config';
 import { FeedQueryDto, CreateCommentDto, ShareReelDto } from './dto/reels.dto';
@@ -20,6 +22,10 @@ export class ReelsService {
         private readonly reelCommentRepository: Repository<ReelComment>,
         @InjectRepository(ReelShare)
         private readonly reelShareRepository: Repository<ReelShare>,
+        @InjectRepository(ReelSave)
+        private readonly reelSaveRepository: Repository<ReelSave>,
+        @InjectRepository(ReelView)
+        private readonly reelViewRepository: Repository<ReelView>,
         @InjectRepository(Follow)
         private readonly followRepository: Repository<Follow>,
         @Inject('REDIS_CLIENT')
@@ -255,6 +261,85 @@ export class ReelsService {
         await this.reelRepository.increment({ id: reelId }, 'shareCount', 1);
 
         return { message: 'Reel shared successfully' };
+    }
+
+    /**
+     * Save/bookmark a reel
+     */
+    async saveReel(reelId: string, userId: string) {
+        // Check if reel exists
+        const reel = await this.reelRepository.findOne({ where: { id: reelId } });
+        if (!reel) {
+            throw new NotFoundException('Reel not found');
+        }
+
+        // Check if already saved
+        const existingSave = await this.reelSaveRepository.findOne({
+            where: { reelId, userId },
+        });
+
+        if (existingSave) {
+            throw new ConflictException('Reel already saved');
+        }
+
+        const save = this.reelSaveRepository.create({
+            reelId,
+            userId,
+        });
+
+        await this.reelSaveRepository.save(save);
+
+        return { message: 'Reel saved successfully' };
+    }
+
+    /**
+     * Unsave/unbookmark a reel
+     */
+    async unsaveReel(reelId: string, userId: string) {
+        const save = await this.reelSaveRepository.findOne({
+            where: { reelId, userId },
+        });
+
+        if (!save) {
+            throw new NotFoundException('Save not found');
+        }
+
+        await this.reelSaveRepository.remove(save);
+
+        return { message: 'Reel unsaved successfully' };
+    }
+
+    /**
+     * Track a view on a reel
+     */
+    async trackView(reelId: string, userId: string) {
+        // Check if reel exists
+        const reel = await this.reelRepository.findOne({ where: { id: reelId } });
+        if (!reel) {
+            throw new NotFoundException('Reel not found');
+        }
+
+        // Check if already viewed (idempotent - only count unique views)
+        const existingView = await this.reelViewRepository.findOne({
+            where: { reelId, userId },
+        });
+
+        if (existingView) {
+            // Already viewed, don't increment counter
+            return { message: 'View already tracked' };
+        }
+
+        const view = this.reelViewRepository.create({
+            reelId,
+            userId,
+        });
+
+        await this.reelViewRepository.save(view);
+
+        // Increment view counter
+        await this.reelRepository.increment({ id: reelId }, 'viewCount', 1);
+
+        return { message: 'View tracked successfully' };
     }
 
     /**

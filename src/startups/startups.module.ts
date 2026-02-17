@@ -4,9 +4,13 @@ import { StartupsController } from './startups.controller';
 import { StartupsService } from './startups.service';
 import { Startup } from './entities/startup.entity';
 import { Follow } from './entities/follow.entity';
+import { UsersModule } from '../users/users.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Startup, Follow])],
+    imports: [
+        TypeOrmModule.forFeature([Startup, Follow]),
+        UsersModule,
+    ],
     controllers: [StartupsController],
     providers: [StartupsService],
     exports: [StartupsService],

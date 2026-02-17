@@ -1,11 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ExploreService } from './explore.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 
 @ApiTags('Explore')
-@Controller()
-@UseGuards(JwtAuthGuard)
+@Controller('explore')
+@UseGuards(SupabaseAuthGuard)
 @ApiBearerAuth()
 export class ExploreController {
     constructor(private readonly exploreService: ExploreService) { }

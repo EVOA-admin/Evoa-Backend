@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { PitchService } from './pitch.service';
 import { AiService } from '../ai/ai.service';
 import { MeetingsService } from '../meetings/meetings.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -12,7 +12,7 @@ import { ScheduleMeetingDto } from '../meetings/dto/meetings.dto';
 
 @ApiTags('Pitch')
 @Controller('pitch')
-@UseGuards(JwtAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @ApiBearerAuth()
 export class PitchController {
     constructor(

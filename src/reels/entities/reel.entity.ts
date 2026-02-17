@@ -3,6 +3,8 @@ import { Startup } from '../../startups/entities/startup.entity';
 import { ReelLike } from './reel-like.entity';
 import { ReelComment } from './reel-comment.entity';
 import { ReelShare } from './reel-share.entity';
+import { ReelSave } from './reel-save.entity';
+import { ReelView } from './reel-view.entity';
 
 @Entity('reels')
 export class Reel {
@@ -71,4 +73,10 @@ export class Reel {
 
     @OneToMany(() => ReelShare, (share) => share.reel)
     shares: ReelShare[];
+
+    @OneToMany(() => ReelSave, (save) => save.reel)
+    saves: ReelSave[];
+
+    @OneToMany(() => ReelView, (view) => view.reel)
+    views: ReelView[];
 }

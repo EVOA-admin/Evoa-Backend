@@ -1,30 +1,26 @@
 import { Controller, Get, Post, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReelsService } from './reels.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { FeedQueryDto, CreateCommentDto, ShareReelDto } from './dto/reels.dto';
 
 @ApiTags('Reels')
 @Controller('reels')
-@UseGuards(JwtAuthGuard)
+@UseGuards(SupabaseAuthGuard)
 @ApiBearerAuth()
 export class ReelsController {
     constructor(private readonly reelsService: ReelsService) { }
 
     @Get()
     @ApiOperation({ summary: 'Get feed (For You or Following)' })
-    @ApiQuery({ name: 'type', enum: ['for_you', 'following'], required: true })
-    @ApiQuery({ name: 'cursor', required: false })
-    @ApiQuery({ name: 'limit', required: false, type: Number })
     @ApiResponse({ status: 200, description: 'Feed retrieved successfully' })
     async getFeed(
         @CurrentUser() user: User,
-        @Query('type') type: 'for_you' | 'following',
         @Query() query: FeedQueryDto,
     ) {
-        if (type === 'following') {
+        if (query.type === 'following') {
             return this.reelsService.getFollowingFeed(user.id, query);
         }
         return this.reelsService.getForYouFeed(user.id, query);
@@ -73,5 +69,28 @@ export class ReelsController {
         @Body() dto: ShareReelDto,
     ) {
         return this.reelsService.shareReel(reelId, user.id, dto);
+    }
+
+    @Post(':id/save')
+    @ApiOperation({ summary: 'Save/bookmark a reel' })
+    @ApiResponse({ status: 201, description: 'Reel saved successfully' })
+    @ApiResponse({ status: 409, description: 'Reel already saved' })
+    async saveReel(@Param('id') reelId: string, @CurrentUser() user: User) {
+        return this.reelsService.saveReel(reelId, user.id);
+    }
+
+    @Delete(':id/save')
+    @ApiOperation({ summary: 'Unsave/unbookmark a reel' })
+    @ApiResponse({ status: 200, description: 'Reel unsaved successfully' })
+    @ApiResponse({ status: 404, description: 'Save not found' })
+    async unsaveReel(@Param('id') reelId: string, @CurrentUser() user: User) {
+        return this.reelsService.unsaveReel(reelId, user.id);
+    }
+
+    @Post(':id/view')
+    @ApiOperation({ summary: 'Track a view on a reel' })
+    @ApiResponse({ status: 201, description: 'View tracked successfully' })
+    async trackView(@Param('id') reelId: string, @CurrentUser() user: User) {
+        return this.reelsService.trackView(reelId, user.id);
     }
 }

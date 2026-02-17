@@ -6,12 +6,14 @@ import { Reel } from '../reels/entities/reel.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { AiModule } from '../ai/ai.module';
 import { MeetingsModule } from '../meetings/meetings.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Reel, Startup]),
         AiModule,
         MeetingsModule,
+        UsersModule,
     ],
     controllers: [PitchController],
     providers: [PitchService],
