@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Delete, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, UseGuards, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { StartupsService } from './startups.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { CreateStartupDto } from './dto/create-startup.dto';
 
 @ApiTags('Startups')
 @Controller('startups')
@@ -11,6 +12,14 @@ import { User } from '../users/entities/user.entity';
 @ApiBearerAuth()
 export class StartupsController {
     constructor(private readonly startupsService: StartupsService) { }
+
+    @Post()
+    @ApiOperation({ summary: 'Create a startup profile' })
+    @ApiResponse({ status: 201, description: 'Startup created successfully' })
+    @ApiResponse({ status: 409, description: 'Username already taken' })
+    async createStartup(@CurrentUser() user: User, @Body() dto: CreateStartupDto) {
+        return this.startupsService.createStartup(user.id, dto);
+    }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get startup details' })

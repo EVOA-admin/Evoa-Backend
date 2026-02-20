@@ -7,12 +7,16 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
+// import { SupabaseAuthGuard } from './guards/supabase-auth.guard'; // Removed
+import { AuthGuardModule } from './auth-guard.module';
 import { UsersModule } from '../users/users.module';
+// import { User } from '../users/entities/user.entity'; // Removed
 
 @Module({
     imports: [
-        UsersModule, // Import UsersModule to get User repository
+        // TypeOrmModule.forFeature([User]), // Moved to AuthGuardModule
+        UsersModule, // No more forwardRef needed
+        AuthGuardModule,
         PassportModule.register({ defaultStrategy: 'jwt' }),
         JwtModule.registerAsync({
             imports: [ConfigModule],
@@ -26,7 +30,7 @@ import { UsersModule } from '../users/users.module';
         }),
     ],
     controllers: [AuthController],
-    providers: [AuthService, JwtStrategy, GoogleStrategy, SupabaseAuthGuard],
-    exports: [AuthService, JwtStrategy, PassportModule, SupabaseAuthGuard],
+    providers: [AuthService, JwtStrategy, GoogleStrategy], // SupabaseAuthGuard moved to AuthGuardModule
+    exports: [AuthService, JwtStrategy, PassportModule, AuthGuardModule], // Export AuthGuardModule so others referencing AuthModule get the guard
 })
 export class AuthModule { }

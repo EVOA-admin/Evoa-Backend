@@ -13,6 +13,8 @@ import { MeetingsModule } from './meetings/meetings.module';
 import { StartupsModule } from './startups/startups.module';
 import { ExploreModule } from './explore/explore.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { InvestorsModule } from './investors/investors.module';
+import { IncubatorsModule } from './incubators/incubators.module';
 
 @Module({
     imports: [
@@ -37,6 +39,8 @@ import { NotificationsModule } from './notifications/notifications.module';
         StartupsModule,
         ExploreModule,
         NotificationsModule,
+        InvestorsModule,
+        IncubatorsModule,
     ],
 })
 export class AppModule { }

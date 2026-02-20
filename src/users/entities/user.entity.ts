@@ -9,10 +9,12 @@ import { Follow } from '../../startups/entities/follow.entity';
 import { Meeting } from '../../meetings/entities/meeting.entity';
 import { Notification } from '../../notifications/entities/notification.entity';
 import { InvestorAiLog } from '../../ai/entities/investor-ai-log.entity';
+import { Investor } from '../../investors/entities/investor.entity';
+import { Incubator } from '../../incubators/entities/incubator.entity';
 
 export enum UserRole {
     VIEWER = 'viewer',
-    FOUNDER = 'founder',
+    STARTUP = 'startup',
     INVESTOR = 'investor',
     INCUBATOR = 'incubator',
     ADMIN = 'admin',
@@ -102,4 +104,10 @@ export class User {
 
     @OneToMany(() => InvestorAiLog, (log) => log.investor)
     aiLogs: InvestorAiLog[];
+
+    @OneToMany(() => Investor, (investor) => investor.user)
+    investors: Investor[];
+
+    @OneToMany(() => Incubator, (incubator) => incubator.user)
+    incubators: Incubator[];
 }

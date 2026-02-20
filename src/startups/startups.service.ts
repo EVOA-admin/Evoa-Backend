@@ -13,6 +13,26 @@ export class StartupsService {
         private readonly followRepository: Repository<Follow>,
     ) { }
 
+    async createStartup(userId: string, dto: any) {
+        // Check availability of username
+        const existing = await this.startupRepository.findOne({
+            where: { username: dto.username }
+        });
+
+        if (existing) {
+            throw new ConflictException('Startup username already taken');
+        }
+
+        const startup = this.startupRepository.create({
+            ...dto,
+            founderId: userId,
+            // Map single industry to legacy field if needed, or just use industries array
+            industry: dto.industries?.[0] || null,
+        });
+
+        return this.startupRepository.save(startup);
+    }
+
     async getStartup(startupId: string) {
         const startup = await this.startupRepository.findOne({
             where: { id: startupId },

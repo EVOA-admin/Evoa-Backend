@@ -7,11 +7,13 @@ import { Reel } from '../reels/entities/reel.entity';
 import { Hashtag } from './entities/hashtag.entity';
 import { UsersModule } from '../users/users.module';
 import { redisClientFactory, RedisService } from '../config/redis.config';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Startup, Reel, Hashtag]),
         UsersModule,
+        AuthModule,
     ],
     controllers: [ExploreController],
     providers: [ExploreService, redisClientFactory, RedisService],

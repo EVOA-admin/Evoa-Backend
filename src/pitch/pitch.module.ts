@@ -7,6 +7,7 @@ import { Startup } from '../startups/entities/startup.entity';
 import { AiModule } from '../ai/ai.module';
 import { MeetingsModule } from '../meetings/meetings.module';
 import { UsersModule } from '../users/users.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
@@ -14,6 +15,7 @@ import { UsersModule } from '../users/users.module';
         AiModule,
         MeetingsModule,
         UsersModule,
+        AuthModule,
     ],
     controllers: [PitchController],
     providers: [PitchService],

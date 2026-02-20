@@ -53,6 +53,36 @@ export class Startup {
     @Column({ name: 'follower_count', default: 0 })
     followerCount: number;
 
+    @Column({ unique: true, nullable: true })
+    username: string;
+
+    @Column('text', { array: true, default: '{}' })
+    industries: string[];
+
+    @Column({ type: 'jsonb', nullable: true })
+    location: { city: string; state: string; country: string };
+
+    @Column({ type: 'jsonb', nullable: true })
+    founders: { name: string; email: string; mobile: string; role: string; photoUrl?: string }[];
+
+    @Column({ type: 'jsonb', nullable: true })
+    verification: { type: string; value: string; documentUrl?: string; entityType: string };
+
+    @Column({ name: 'pitch_video_url', nullable: true })
+    pitchVideoUrl: string;
+
+    @Column({ name: 'pitch_deck_url', nullable: true })
+    pitchDeckUrl: string;
+
+    @Column({ type: 'jsonb', nullable: true })
+    socialLinks: { linkedin?: string; instagram?: string; youtube?: string; website?: string; playStore?: string; productDemo?: string };
+
+    @Column({ type: 'jsonb', nullable: true })
+    teamMembers: { name: string; role: string; linkedin?: string; image?: string }[];
+
+    @Column('text', { array: true, default: '{}' })
+    categoryTags: string[];
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

@@ -80,10 +80,26 @@ export class ReelsService {
         });
         const likedReelIds = new Set(userLikes.map(like => like.reelId));
 
+        // Check if user saved each reel
+        // Check if user saved each reel
+        const userSaves = await this.reelSaveRepository.find({
+            where: { userId, reelId: In(reelIds) },
+        });
+        const savedReelIds = new Set(userSaves.map(save => save.reelId));
+
+        // Check if user follows the startup of each reel
+        const startupIds = Array.from(new Set(reels.map(r => r.startupId)));
+        const userFollows = await this.followRepository.find({
+            where: { followerId: userId, startupId: In(startupIds) },
+        });
+        const followedStartupIds = new Set(userFollows.map(follow => follow.startupId));
+
         const result = {
             reels: reels.map(reel => ({
                 ...reel,
                 isLiked: likedReelIds.has(reel.id),
+                isSaved: savedReelIds.has(reel.id),
+                isFollowing: followedStartupIds.has(reel.startupId),
             })),
             nextCursor,
             hasMore,
@@ -152,10 +168,19 @@ export class ReelsService {
         });
         const likedReelIds = new Set(userLikes.map(like => like.reelId));
 
+        // Check if user saved each reel
+        // Check if user saved each reel
+        const userSaves = await this.reelSaveRepository.find({
+            where: { userId, reelId: In(reelIds) },
+        });
+        const savedReelIds = new Set(userSaves.map(save => save.reelId));
+
         const result = {
             reels: reels.map(reel => ({
                 ...reel,
                 isLiked: likedReelIds.has(reel.id),
+                isSaved: savedReelIds.has(reel.id),
+                isFollowing: true,
             })),
             nextCursor,
             hasMore,
@@ -354,16 +379,37 @@ export class ReelsService {
     }
 
     /**
-     * Invalidate feed cache for user
+     * Invalidate feed cache for user using Redis SCAN
      */
     private async invalidateFeedCache(userId: string) {
-        // In production, you'd use Redis SCAN to find and delete all matching keys
-        // For now, we'll just delete common cache keys
-        const patterns = [
-            `feed:for_you:${userId}:*`,
-            `feed:following:${userId}:*`,
-        ];
+        try {
+            if (!this.redisClient) return;
 
-        // Note: This is simplified. In production, implement proper cache invalidation
+            const patterns = [
+                `feed:for_you:${userId}:*`,
+                `feed:following:${userId}:*`,
+            ];
+
+            for (const pattern of patterns) {
+                // Use SCAN to find all matching keys and delete them
+                let cursor = '0';
+                do {
+                    const [nextCursor, keys] = await this.redisClient.scan(
+                        cursor,
+                        'MATCH',
+                        pattern,
+                        'COUNT',
+                        100,
+                    );
+                    cursor = nextCursor;
+                    if (keys.length > 0) {
+                        await this.redisClient.del(...keys);
+                    }
+                } while (cursor !== '0');
+            }
+        } catch (err) {
+            // Cache invalidation failure should not break the main operation
+            console.error('Cache invalidation error:', err);
+        }
     }
 }
