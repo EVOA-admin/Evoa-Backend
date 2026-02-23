@@ -11,6 +11,7 @@ import { Notification } from '../../notifications/entities/notification.entity';
 import { InvestorAiLog } from '../../ai/entities/investor-ai-log.entity';
 import { Investor } from '../../investors/entities/investor.entity';
 import { Incubator } from '../../incubators/entities/incubator.entity';
+import { UserConnection } from './user-connection.entity';
 
 export enum UserRole {
     VIEWER = 'viewer',
@@ -69,6 +70,9 @@ export class User {
     @Column({ nullable: true })
     website: string;
 
+    @Column({ name: 'connection_count', default: 0 })
+    connectionCount: number;
+
     @Column({ name: 'supabase_user_id', unique: true, nullable: true })
     @Index()
     supabaseUserId: string;
@@ -121,4 +125,10 @@ export class User {
 
     @OneToMany(() => Incubator, (incubator) => incubator.user)
     incubators: Incubator[];
+
+    @OneToMany(() => UserConnection, (conn) => conn.connector)
+    connectionsGiven: UserConnection[];
+
+    @OneToMany(() => UserConnection, (conn) => conn.target)
+    connectionsReceived: UserConnection[];
 }

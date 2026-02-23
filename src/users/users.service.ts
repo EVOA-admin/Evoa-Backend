@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
+import { UserConnection } from './entities/user-connection.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { UpdateProfileDto } from './dto/users.dto';
 
@@ -12,6 +13,8 @@ export class UsersService {
         private readonly userRepository: Repository<User>,
         @InjectRepository(Notification)
         private readonly notificationRepository: Repository<Notification>,
+        @InjectRepository(UserConnection)
+        private readonly connectionRepository: Repository<UserConnection>,
     ) { }
 
     async getProfile(userId: string) {
@@ -42,8 +45,6 @@ export class UsersService {
 
     /**
      * Step 1 of onboarding: user picks a role.
-     * Sets roleSelected=true. For viewer role, also sets registrationCompleted=true
-     * since viewers don't have a registration form.
      */
     async updateRole(userId: string, role: string) {
         const validRoles = Object.values(UserRole);
@@ -57,7 +58,6 @@ export class UsersService {
             {
                 role: role as UserRole,
                 roleSelected: true,
-                // Viewers have no registration form, so mark complete immediately
                 registrationCompleted: isViewer,
             }
         );
@@ -66,58 +66,116 @@ export class UsersService {
 
     /**
      * Step 2 of onboarding: user completes the role-specific registration form.
-     * Sets registrationCompleted=true.
      */
     async completeRegistration(userId: string) {
         await this.userRepository.update({ id: userId }, { registrationCompleted: true });
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
-    async trackConnectClick(targetUserId: string, clickerId: string) {
-        if (targetUserId === clickerId) return { message: 'Cannot connect with self' };
+    /**
+     * Get whether connectorId has connected with targetId.
+     */
+    async getConnectionStatus(targetUserId: string, connectorId: string) {
+        if (targetUserId === connectorId) {
+            return { connected: false, connectionCount: 0, isOwnProfile: true };
+        }
 
-        const [target, clicker] = await Promise.all([
-            this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'role'] }),
-            this.userRepository.findOne({ where: { id: clickerId }, select: ['id', 'fullName'] })
+        const [connection, target] = await Promise.all([
+            this.connectionRepository.findOne({
+                where: { connectorId, targetId: targetUserId },
+            }),
+            this.userRepository.findOne({
+                where: { id: targetUserId },
+                select: ['id', 'connectionCount'],
+            }),
         ]);
 
-        if (!target || !clicker) return { message: 'User not found' };
+        return {
+            connected: !!connection,
+            connectionCount: target?.connectionCount ?? 0,
+        };
+    }
 
-        // We only notify Investors and Incubators about connections,
-        // since Startups receive "Support" instead.
+    /**
+     * Toggle connect/disconnect.
+     * - First click  → creates connection row, increments connectionCount, sends notification.
+     * - Second click → removes connection row, decrements connectionCount.
+     * Returns { connected, connectionCount }.
+     */
+    async toggleConnect(targetUserId: string, connectorId: string) {
+        if (targetUserId === connectorId) {
+            return { message: 'Cannot connect with yourself', connected: false, connectionCount: 0 };
+        }
+
+        const [target, connector] = await Promise.all([
+            this.userRepository.findOne({
+                where: { id: targetUserId },
+                select: ['id', 'role', 'fullName', 'connectionCount'],
+            }),
+            this.userRepository.findOne({
+                where: { id: connectorId },
+                select: ['id', 'fullName', 'avatarUrl'],
+            }),
+        ]);
+
+        if (!target || !connector) {
+            throw new BadRequestException('User not found');
+        }
+
+        const existing = await this.connectionRepository.findOne({
+            where: { connectorId, targetId: targetUserId },
+        });
+
+        if (existing) {
+            // — Disconnect —
+            await this.connectionRepository.remove(existing);
+            const newCount = Math.max(0, (target.connectionCount || 0) - 1);
+            await this.userRepository.update({ id: targetUserId }, { connectionCount: newCount });
+            return { connected: false, connectionCount: newCount };
+        }
+
+        // — Connect —
+        await this.connectionRepository.save(
+            this.connectionRepository.create({ connectorId, targetId: targetUserId }),
+        );
+
+        const newCount = (target.connectionCount || 0) + 1;
+        await this.userRepository.update({ id: targetUserId }, { connectionCount: newCount });
+
+        // Send notification to the target (investors & incubators only)
         if (target.role === UserRole.INVESTOR || target.role === UserRole.INCUBATOR) {
             await this.notificationRepository.save(
                 this.notificationRepository.create({
                     userId: target.id,
                     type: NotificationType.SYSTEM,
-                    title: 'New Connection Request 🤝',
-                    message: `${clicker.fullName || 'Someone'} wants to connect with you!`,
-                    link: `/u/${clicker.id}`,
-                })
+                    title: 'New Connection 🤝',
+                    message: `${connector.fullName || 'Someone'} connected with you!`,
+                    link: `/u/${connector.id}`,
+                }),
             );
         }
 
-        return { message: 'Connect click tracked successfully' };
+        return { connected: true, connectionCount: newCount };
+    }
+
+    /** @deprecated — kept for backward compat, now calls toggleConnect */
+    async trackConnectClick(targetUserId: string, clickerId: string) {
+        return this.toggleConnect(targetUserId, clickerId);
     }
 
     async syncUser(dto: any) {
         const { email, id, user_metadata } = dto;
 
-        // Try to find by Supabase ID first
         let user = await this.userRepository.findOne({ where: { supabaseUserId: id } });
 
-        // If not found, try by email (migration case)
         if (!user) {
             user = await this.userRepository.findOne({ where: { email } });
-
             if (user) {
-                // Link existing user to Supabase ID
                 user.supabaseUserId = id;
                 await this.userRepository.save(user);
             }
         }
 
-        // If still not found, create new user with default viewer role
         if (!user) {
             user = this.userRepository.create({
                 email,

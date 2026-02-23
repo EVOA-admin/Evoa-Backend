@@ -5,13 +5,15 @@ import { ExploreService } from './explore.service';
 import { Startup } from '../startups/entities/startup.entity';
 import { Reel } from '../reels/entities/reel.entity';
 import { Hashtag } from './entities/hashtag.entity';
+import { Investor } from '../investors/entities/investor.entity';
+import { Incubator } from '../incubators/entities/incubator.entity';
 import { UsersModule } from '../users/users.module';
 import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Startup, Reel, Hashtag]),
+        TypeOrmModule.forFeature([Startup, Reel, Hashtag, Investor, Incubator]),
         UsersModule,
         AuthModule,
     ],

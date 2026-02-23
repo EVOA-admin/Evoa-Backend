@@ -38,8 +38,6 @@ export class UsersController {
     @ApiOperation({ summary: 'Sync user from Supabase Auth (requires auth)' })
     @ApiResponse({ status: 201, description: 'User synced successfully' })
     async syncUser(@CurrentUser() user: User, @Body() dto: SyncUserDto) {
-        // Use the authenticated user's ID from the guard, not from the body
-        // This prevents anyone from syncing arbitrary user IDs
         return this.usersService.syncUser({ ...dto, id: user.supabaseUserId });
     }
 
@@ -57,10 +55,32 @@ export class UsersController {
         return this.usersService.completeRegistration(user.id);
     }
 
+    /**
+     * GET /users/:id/connection-status
+     * Returns { connected: boolean, connectionCount: number }
+     */
+    @Get(':id/connection-status')
+    @ApiOperation({ summary: 'Check if current user is connected with another user' })
+    @ApiResponse({ status: 200, description: 'Connection status returned' })
+    async getConnectionStatus(@Param('id') targetUserId: string, @CurrentUser() user: User) {
+        return this.usersService.getConnectionStatus(targetUserId, user.id);
+    }
+
+    /**
+     * POST /users/:id/connect
+     * Toggles connection on/off and returns { connected, connectionCount }
+     */
+    @Post(':id/connect')
+    @ApiOperation({ summary: 'Toggle connect/disconnect with an investor or incubator' })
+    @ApiResponse({ status: 200, description: 'Connection toggled' })
+    async toggleConnect(@Param('id') targetUserId: string, @CurrentUser() user: User) {
+        return this.usersService.toggleConnect(targetUserId, user.id);
+    }
+
+    /** @deprecated Use POST :id/connect instead */
     @Post(':id/connect-click')
-    @ApiOperation({ summary: 'Track when a user clicks Connect on another user profile' })
-    @ApiResponse({ status: 200, description: 'Tracked successfully' })
+    @ApiOperation({ summary: '[Deprecated] Track connect click — use POST :id/connect' })
     async trackConnectClick(@Param('id') targetUserId: string, @CurrentUser() user: User) {
-        return this.usersService.trackConnectClick(targetUserId, user.id);
+        return this.usersService.toggleConnect(targetUserId, user.id);
     }
 }

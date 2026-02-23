@@ -62,6 +62,42 @@ export class CreateIncubatorDto {
     gallery?: string[];
 
     @IsOptional()
+    @IsString()
+    organizationType?: string;
+
+    @IsOptional()
+    @IsString()
+    affiliationType?: string;
+
+    @IsOptional()
+    @IsString()
+    equityPolicy?: string;
+
+    @IsOptional()
+    @IsString()
+    fundingSupport?: string;
+
+    @IsOptional()
+    @IsString()
+    programDuration?: string;
+
+    @IsOptional()
+    @IsNumber()
+    numberOfMentors?: number;
+
+    @IsOptional()
+    @IsString()
+    portfolioStartups?: string;
+
+    @IsOptional()
+    @IsString()
+    phoneNumber?: string;
+
+    @IsOptional()
+    @IsString()
+    fullAddress?: string;
+
+    @IsOptional()
     @IsObject()
     socialLinks?: { linkedin?: string; instagram?: string; youtube?: string; twitter?: string };
 

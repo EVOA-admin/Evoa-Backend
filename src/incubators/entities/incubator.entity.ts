@@ -71,6 +71,33 @@ export class Incubator {
     @Column({ default: false })
     verified: boolean;
 
+    @Column({ name: 'organization_type', nullable: true })
+    organizationType: string;
+
+    @Column({ name: 'affiliation_type', nullable: true })
+    affiliationType: string;
+
+    @Column({ name: 'equity_policy', nullable: true })
+    equityPolicy: string;
+
+    @Column({ name: 'funding_support', nullable: true })
+    fundingSupport: string;
+
+    @Column({ name: 'program_duration', nullable: true })
+    programDuration: string;
+
+    @Column({ name: 'number_of_mentors', nullable: true })
+    numberOfMentors: number;
+
+    @Column({ type: 'text', name: 'portfolio_startups', nullable: true })
+    portfolioStartups: string;
+
+    @Column({ name: 'phone_number', nullable: true })
+    phoneNumber: string;
+
+    @Column({ type: 'text', name: 'full_address', nullable: true })
+    fullAddress: string;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 
