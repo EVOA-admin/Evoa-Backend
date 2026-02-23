@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
+import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { UpdateProfileDto } from './dto/users.dto';
 
 @Injectable()
@@ -9,13 +10,30 @@ export class UsersService {
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(Notification)
+        private readonly notificationRepository: Repository<Notification>,
     ) { }
 
     async getProfile(userId: string) {
         return this.userRepository.findOne({
             where: { id: userId },
-            relations: ['startups']
+            relations: ['startups'],
         });
+    }
+
+    async getPublicProfile(userId: string) {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'fullName', 'avatarUrl', 'role', 'bio', 'company', 'location', 'website', 'createdAt'],
+            relations: [
+                'startups',
+                'startups.reels',
+                'investors',
+                'incubators',
+            ],
+        });
+        if (!user) throw new Error('User not found');
+        return user;
     }
 
     async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -54,6 +72,33 @@ export class UsersService {
     async completeRegistration(userId: string) {
         await this.userRepository.update({ id: userId }, { registrationCompleted: true });
         return this.userRepository.findOne({ where: { id: userId } });
+    }
+
+    async trackConnectClick(targetUserId: string, clickerId: string) {
+        if (targetUserId === clickerId) return { message: 'Cannot connect with self' };
+
+        const [target, clicker] = await Promise.all([
+            this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'role'] }),
+            this.userRepository.findOne({ where: { id: clickerId }, select: ['id', 'fullName'] })
+        ]);
+
+        if (!target || !clicker) return { message: 'User not found' };
+
+        // We only notify Investors and Incubators about connections,
+        // since Startups receive "Support" instead.
+        if (target.role === UserRole.INVESTOR || target.role === UserRole.INCUBATOR) {
+            await this.notificationRepository.save(
+                this.notificationRepository.create({
+                    userId: target.id,
+                    type: NotificationType.SYSTEM,
+                    title: 'New Connection Request 🤝',
+                    message: `${clicker.fullName || 'Someone'} wants to connect with you!`,
+                    link: `/u/${clicker.id}`,
+                })
+            );
+        }
+
+        return { message: 'Connect click tracked successfully' };
     }
 
     async syncUser(dto: any) {

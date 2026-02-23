@@ -24,50 +24,69 @@ export class ExploreService {
 
     private redisService = new RedisService(this.redisClient);
 
-    async search(query: string, type: 'startups' | 'investors' | 'hashtags' = 'startups') {
-        const cacheKey = `search:${type}:${query}`;
+    async search(query: string, type: string = 'all') {
+        const cleanQuery = query.toLowerCase().replace(/^#/, '').trim();
+        const cacheKey = `search:${type}:${cleanQuery}`;
         const cached = await this.redisService.get(cacheKey);
 
         if (cached) {
             return JSON.parse(cached);
         }
 
-        let results;
+        let results: any = {};
 
-        switch (type) {
-            case 'startups':
-                results = await this.startupRepository.find({
-                    where: [
-                        { name: Like(`%${query}%`) },
-                        { description: Like(`%${query}%`) },
-                        { industry: Like(`%${query}%`) },
-                    ],
-                    relations: ['founder'],
-                    take: 20,
-                });
-                break;
+        // Always search startups by name / description / industry
+        const startupResults = await this.startupRepository.find({
+            where: [
+                { name: Like(`%${cleanQuery}%`) },
+                { description: Like(`%${cleanQuery}%`) },
+                { industry: Like(`%${cleanQuery}%`) },
+            ],
+            relations: ['founder'],
+            take: 20,
+        });
 
-            case 'investors':
-                results = await this.userRepository.find({
-                    where: [
-                        { role: In([UserRole.INVESTOR, UserRole.INCUBATOR]) },
-                        { fullName: Like(`%${query}%`) },
-                    ],
-                    take: 20,
-                });
-                break;
+        // Search reels whose hashtags array contains the query tag
+        // Uses PostgreSQL array overlap: hashtags && ARRAY['tag']
+        const reelResults = await this.reelRepository
+            .createQueryBuilder('reel')
+            .leftJoinAndSelect('reel.startup', 'startup')
+            .leftJoinAndSelect('startup.founder', 'founder')
+            .where(`reel.hashtags @> ARRAY[:tag]::text[]`, { tag: cleanQuery })
+            .orWhere(`reel.title ILIKE :q`, { q: `%${cleanQuery}%` })
+            .orWhere(`reel.description ILIKE :q`, { q: `%${cleanQuery}%` })
+            .andWhere('reel.deletedAt IS NULL')
+            .orderBy('reel.likeCount', 'DESC')
+            .take(30)
+            .getMany();
 
-            case 'hashtags':
-                results = await this.hashtagRepository.find({
-                    where: { tag: Like(`%${query}%`) },
-                    order: { usageCount: 'DESC' },
-                    take: 20,
-                });
-                break;
-        }
+        // Also search by partial hashtag match using LIKE on the array cast
+        const hashtagReels = await this.reelRepository
+            .createQueryBuilder('reel')
+            .leftJoinAndSelect('reel.startup', 'startup')
+            .leftJoinAndSelect('startup.founder', 'founder')
+            .where(`EXISTS (SELECT 1 FROM unnest(reel.hashtags) h WHERE h ILIKE :ht)`, { ht: `%${cleanQuery}%` })
+            .andWhere('reel.deletedAt IS NULL')
+            .orderBy('reel.likeCount', 'DESC')
+            .take(30)
+            .getMany();
 
-        // Cache for 10 minutes
-        await this.redisService.set(cacheKey, JSON.stringify(results), 600);
+        // Deduplicate reels by id
+        const reelMap = new Map<string, any>();
+        [...reelResults, ...hashtagReels].forEach(r => reelMap.set(r.id, r));
+        const dedupedReels = Array.from(reelMap.values());
+
+        results = {
+            startups: startupResults,
+            reels: dedupedReels,
+            // Collect all matching hashtags from the found reels for display
+            hashtags: [...new Set(
+                dedupedReels.flatMap(r => r.hashtags || []).filter(h => h.includes(cleanQuery))
+            )].slice(0, 20),
+        };
+
+        // Cache for 5 minutes
+        await this.redisService.set(cacheKey, JSON.stringify(results), 300);
 
         return results;
     }

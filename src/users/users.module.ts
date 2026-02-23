@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
+import { Notification } from '../notifications/entities/notification.entity';
 import { AuthGuardModule } from '../auth/auth-guard.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User]),
+        TypeOrmModule.forFeature([User, Notification]),
         AuthGuardModule, // Use the extracted module
     ],
     controllers: [UsersController],

@@ -10,6 +10,7 @@ import { ReelView } from './entities/reel-view.entity';
 import { Follow } from '../startups/entities/follow.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
+import { User } from '../users/entities/user.entity';
 import { RedisService } from '../config/redis.config';
 import { FeedQueryDto, CreateCommentDto, ShareReelDto, CreateReelDto } from './dto/reels.dto';
 
@@ -34,6 +35,8 @@ export class ReelsService {
         private readonly startupRepository: Repository<Startup>,
         @InjectRepository(Notification)
         private readonly notificationRepository: Repository<Notification>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         @Inject('REDIS_CLIENT')
         private readonly redisClient: any,
     ) { }
@@ -317,7 +320,7 @@ export class ReelsService {
      * Comment on a reel
      */
     async commentOnReel(reelId: string, userId: string, dto: CreateCommentDto) {
-        const reel = await this.reelRepository.findOne({ where: { id: reelId } });
+        const reel = await this.reelRepository.findOne({ where: { id: reelId }, relations: ['startup'] });
         if (!reel) {
             throw new NotFoundException('Reel not found');
         }
@@ -333,6 +336,25 @@ export class ReelsService {
 
         // Increment counter
         await this.reelRepository.increment({ id: reelId }, 'commentCount', 1);
+
+        // Notify startup owner
+        if (reel.startup?.founderId && reel.startup.founderId !== userId) {
+            this.userRepository.findOne({ where: { id: userId }, select: ['id', 'fullName'] })
+                .then(commenter => {
+                    if (commenter) {
+                        this.notificationRepository.save(
+                            this.notificationRepository.create({
+                                userId: reel.startup.founderId,
+                                type: NotificationType.PITCH,
+                                title: 'New Comment 💬',
+                                message: `${commenter.fullName || 'Someone'} commented on your pitch: "${dto.content.substring(0, 30)}${dto.content.length > 30 ? '...' : ''}"`,
+                                link: `/pitch/${reelId}`,
+                            })
+                        ).catch(() => { /* ignore */ });
+                    }
+                })
+                .catch(() => { /* ignore */ });
+        }
 
         return comment;
     }

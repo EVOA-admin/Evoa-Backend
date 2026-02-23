@@ -42,6 +42,12 @@ export class StartupsController {
         return this.startupsService.getStartup(startupId);
     }
 
+    @Get(':id/follow-status')
+    @ApiOperation({ summary: 'Check if current user follows a startup' })
+    async getFollowStatus(@Param('id') startupId: string, @CurrentUser() user: User) {
+        return this.startupsService.getFollowStatus(startupId, user.id);
+    }
+
     @Patch(':id')
     @ApiOperation({ summary: 'Update startup (founder only)' })
     @ApiResponse({ status: 200, description: 'Startup updated successfully' })

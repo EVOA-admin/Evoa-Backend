@@ -11,13 +11,14 @@ import { ReelView } from './entities/reel-view.entity';
 import { Follow } from '../startups/entities/follow.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Reel, ReelLike, ReelComment, ReelShare, ReelSave, ReelView, Follow, Startup, Notification]),
+        TypeOrmModule.forFeature([Reel, ReelLike, ReelComment, ReelShare, ReelSave, ReelView, Follow, Startup, Notification, User]),
         UsersModule,
         AuthModule,
     ],

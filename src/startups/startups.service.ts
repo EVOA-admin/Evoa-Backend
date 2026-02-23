@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Startup } from './entities/startup.entity';
 import { Follow } from './entities/follow.entity';
 import { Reel } from '../reels/entities/reel.entity';
+import { User } from '../users/entities/user.entity';
+import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class StartupsService {
@@ -14,6 +16,10 @@ export class StartupsService {
         private readonly followRepository: Repository<Follow>,
         @InjectRepository(Reel)
         private readonly reelRepository: Repository<Reel>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
+        @InjectRepository(Notification)
+        private readonly notificationRepository: Repository<Notification>,
         @Optional() @Inject('REDIS_CLIENT')
         private readonly redisClient: any,
     ) { }
@@ -164,6 +170,13 @@ export class StartupsService {
         return startup;
     }
 
+    async getFollowStatus(startupId: string, userId: string) {
+        const follow = await this.followRepository.findOne({
+            where: { followerId: userId, startupId },
+        });
+        return { isFollowing: !!follow };
+    }
+
     async followStartup(startupId: string, userId: string) {
         const startup = await this.startupRepository.findOne({ where: { id: startupId } });
         if (!startup) {
@@ -187,6 +200,23 @@ export class StartupsService {
 
         // Increment follower count
         await this.startupRepository.increment({ id: startupId }, 'followerCount', 1);
+
+        // Notify startup founder about the new support
+        this.userRepository.findOne({ where: { id: userId }, select: ['id', 'fullName'] })
+            .then(follower => {
+                if (follower && startup.founderId !== userId) {
+                    this.notificationRepository.save(
+                        this.notificationRepository.create({
+                            userId: startup.founderId,
+                            type: NotificationType.SYSTEM,
+                            title: 'New Support 🤝',
+                            message: `${follower.fullName || 'Someone'} just supported your startup!`,
+                            link: `/u/${follower.id}`
+                        })
+                    ).catch(() => { /* ignore */ });
+                }
+            })
+            .catch(() => { /* ignore */ });
 
         return { message: 'Startup followed successfully' };
     }

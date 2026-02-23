@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
@@ -18,6 +18,13 @@ export class UsersController {
     @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
     async getProfile(@CurrentUser() user: User) {
         return this.usersService.getProfile(user.id);
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get any user public profile by ID' })
+    @ApiResponse({ status: 200, description: 'Public profile retrieved successfully' })
+    async getPublicProfile(@Param('id') userId: string) {
+        return this.usersService.getPublicProfile(userId);
     }
 
     @Patch('me')
@@ -48,5 +55,12 @@ export class UsersController {
     @ApiResponse({ status: 200, description: 'Registration marked as complete' })
     async completeRegistration(@CurrentUser() user: User) {
         return this.usersService.completeRegistration(user.id);
+    }
+
+    @Post(':id/connect-click')
+    @ApiOperation({ summary: 'Track when a user clicks Connect on another user profile' })
+    @ApiResponse({ status: 200, description: 'Tracked successfully' })
+    async trackConnectClick(@Param('id') targetUserId: string, @CurrentUser() user: User) {
+        return this.usersService.trackConnectClick(targetUserId, user.id);
     }
 }
