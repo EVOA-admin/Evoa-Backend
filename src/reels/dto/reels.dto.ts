@@ -10,12 +10,13 @@ export enum FeedType {
 export class FeedQueryDto {
     @ApiProperty({
         enum: FeedType,
-        required: true,
+        required: false,
         description: 'Feed type: for_you or following',
         example: 'for_you'
     })
-    @IsEnum(FeedType, { message: 'type must be either for_you or following' })
-    type: FeedType;
+    @IsOptional()
+    @IsString()
+    type?: string; // Accept 'foryou', 'for_you', 'following' etc.
 
     @ApiProperty({ required: false, description: 'Cursor for pagination' })
     @IsOptional()
@@ -29,6 +30,11 @@ export class FeedQueryDto {
     @Min(1)
     @Max(50)
     limit?: number = 20;
+
+    @ApiProperty({ required: false, description: 'Filter by hashtag (without #)' })
+    @IsOptional()
+    @IsString()
+    hashtag?: string;
 }
 
 export class CreateCommentDto {
@@ -47,4 +53,24 @@ export class ShareReelDto {
     @IsOptional()
     @IsString()
     platform?: string;
+}
+
+export class CreateReelDto {
+    @ApiProperty({ description: 'Public URL of the pitch video' })
+    @IsString()
+    videoUrl: string;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsString()
+    title?: string;
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @ApiProperty({ required: false, type: [String] })
+    @IsOptional()
+    hashtags?: string[];
 }

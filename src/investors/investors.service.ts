@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Investor } from './entities/investor.entity';
@@ -34,5 +34,15 @@ export class InvestorsService {
 
     async findOne(id: string) {
         return this.investorRepository.findOne({ where: { id } });
+    }
+
+    async updateMyProfile(userId: string, dto: Partial<CreateInvestorDto>) {
+        const investor = await this.findMyInvestorProfile(userId);
+        if (!investor) {
+            throw new NotFoundException('Investor profile not found');
+        }
+
+        Object.assign(investor, dto);
+        return this.investorRepository.save(investor);
     }
 }

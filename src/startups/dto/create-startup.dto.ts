@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsEmail, ValidateNested, IsUrl, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsEmail, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class FounderDto {
@@ -8,11 +8,11 @@ class FounderDto {
 
     @IsEmail()
     @IsOptional()
-    email: string;
+    email?: string;
 
     @IsString()
     @IsOptional()
-    mobile: string;
+    mobile?: string;
 
     @IsString()
     @IsNotEmpty()
@@ -25,58 +25,59 @@ class FounderDto {
 
 class LocationDto {
     @IsString()
-    @IsNotEmpty()
-    city: string;
+    @IsOptional()
+    city?: string;
 
     @IsString()
-    @IsNotEmpty()
-    state: string;
+    @IsOptional()
+    state?: string;
 
     @IsString()
-    @IsNotEmpty()
-    country: string;
+    @IsOptional()
+    country?: string;
 }
 
 class VerificationDto {
     @IsString()
-    @IsNotEmpty()
-    type: string;
+    @IsOptional()
+    type?: string;
 
     @IsString()
     @IsOptional()
-    value: string;
+    value?: string;
 
     @IsString()
     @IsOptional()
     documentUrl?: string;
 
     @IsString()
-    @IsNotEmpty()
-    entityType: string;
+    @IsOptional()
+    entityType?: string;
 }
 
+// Use plain string validation — @IsUrl() rejects user-typed partial URLs
 class SocialLinksDto {
-    @IsUrl()
+    @IsString()
     @IsOptional()
     linkedin?: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     instagram?: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     youtube?: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     website?: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     playStore?: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     productDemo?: string;
 }
@@ -90,7 +91,7 @@ class TeamMemberDto {
     @IsNotEmpty()
     role: string;
 
-    @IsUrl()
+    @IsString()
     @IsOptional()
     linkedin?: string;
 
@@ -110,11 +111,11 @@ export class CreateStartupDto {
 
     @IsString()
     @IsOptional()
-    tagline: string;
+    tagline?: string;
 
     @IsString()
     @IsOptional()
-    description: string;
+    description?: string;
 
     @IsString()
     @IsOptional()
@@ -126,29 +127,33 @@ export class CreateStartupDto {
 
     @IsEmail()
     @IsOptional()
-    companyEmail: string;
+    companyEmail?: string;
 
     @IsArray()
     @IsString({ each: true })
-    industries: string[];
+    @IsOptional()
+    industries?: string[];
 
     @IsString()
-    @IsNotEmpty()
-    stage: string;
+    @IsOptional()
+    stage?: string;
 
+    // Location is optional — not all users fill city/state/country
     @ValidateNested()
     @Type(() => LocationDto)
-    location: LocationDto;
+    @IsOptional()
+    location?: LocationDto;
 
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => FounderDto)
-    founders: FounderDto[];
+    @IsOptional()
+    founders?: FounderDto[];
 
     @ValidateNested()
     @Type(() => VerificationDto)
     @IsOptional()
-    verification: VerificationDto;
+    verification?: VerificationDto;
 
     @IsString()
     @IsOptional()
@@ -158,31 +163,41 @@ export class CreateStartupDto {
     @IsOptional()
     pitchDeckUrl?: string;
 
+    // Correct field names matching the Startup entity columns
     @IsNumber()
     @IsOptional()
-    amountRaising: number;
+    raisingAmount?: number;
 
     @IsNumber()
     @IsOptional()
-    equityGiving: number;
+    equityPercentage?: number;
 
     @IsNumber()
     @IsOptional()
-    preMoneyValuation: number;
+    preMoneyValuation?: number;
 
     @ValidateNested()
     @Type(() => SocialLinksDto)
     @IsOptional()
-    socialLinks: SocialLinksDto;
+    socialLinks?: SocialLinksDto;
 
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => TeamMemberDto)
     @IsOptional()
-    teamMembers: TeamMemberDto[];
+    teamMembers?: TeamMemberDto[];
 
     @IsArray()
     @IsString({ each: true })
     @IsOptional()
-    categoryTags: string[];
+    categoryTags?: string[];
+
+    // Hashtags string from the pitch form (e.g. "#ai #fintech")
+    @IsString()
+    @IsOptional()
+    hashtags?: string;
+
+    @IsString()
+    @IsOptional()
+    shortDescription?: string;
 }

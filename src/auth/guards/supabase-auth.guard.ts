@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { supabaseClient } from '../../config/supabase.config';
+import { supabaseAdmin } from '../../config/supabase.config';
 import { User, UserRole } from '../../users/entities/user.entity';
 
 @Injectable()
@@ -20,26 +20,44 @@ export class SupabaseAuthGuard implements CanActivate {
         }
 
         try {
-            // Verify token with Supabase
-            const { data, error } = await supabaseClient.auth.getUser(token);
+            // Use service-role admin client — reliably verifies all Supabase JWTs
+            // including Google OAuth tokens
+            const { data, error } = await supabaseAdmin.auth.getUser(token);
 
             if (error || !data.user) {
                 throw new UnauthorizedException('Invalid or expired token');
             }
 
-            // Find or create user in database
+            // Find or link user in database
+            const { id: supabaseUserId, email } = data.user;
+
+            // 1. Try to find by Supabase ID
             let user = await this.userRepository.findOne({
-                where: { supabaseUserId: data.user.id },
+                where: { supabaseUserId },
             });
 
+            // 2. If not found by ID, try finding by email (for users previously registered or manually added)
+            if (!user && email) {
+                user = await this.userRepository.findOne({
+                    where: { email },
+                });
+
+                if (user) {
+                    // Link existing user record to new Supabase ID
+                    user.supabaseUserId = supabaseUserId;
+                    await this.userRepository.save(user);
+                }
+            }
+
+            // 3. If still not found, create a new user record
             if (!user) {
-                // Create user on first login
                 user = this.userRepository.create({
-                    email: data.user.email,
-                    fullName: data.user.user_metadata?.full_name || data.user.email,
+                    email,
+                    fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || email?.split('@')[0] || '',
                     avatarUrl: data.user.user_metadata?.avatar_url,
-                    supabaseUserId: data.user.id,
-                    role: UserRole.VIEWER, // Default role
+                    supabaseUserId,
+                    role: UserRole.VIEWER, // Default — overridden during /choice-role
+                    onboardingCompleted: false,
                 });
                 await this.userRepository.save(user);
             }
@@ -53,6 +71,7 @@ export class SupabaseAuthGuard implements CanActivate {
             if (error instanceof UnauthorizedException) {
                 throw error;
             }
+            console.error('[SupabaseAuthGuard] Unexpected error:', error?.message || error);
             throw new UnauthorizedException('Token validation failed');
         }
     }

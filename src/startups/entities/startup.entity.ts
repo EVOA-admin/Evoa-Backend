@@ -83,6 +83,9 @@ export class Startup {
     @Column('text', { array: true, default: '{}' })
     categoryTags: string[];
 
+    @Column('text', { array: true, default: '{}' })
+    hashtags: string[];
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

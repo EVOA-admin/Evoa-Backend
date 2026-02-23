@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, Optional, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Startup } from './entities/startup.entity';
 import { Follow } from './entities/follow.entity';
+import { Reel } from '../reels/entities/reel.entity';
 
 @Injectable()
 export class StartupsService {
@@ -11,6 +12,10 @@ export class StartupsService {
         private readonly startupRepository: Repository<Startup>,
         @InjectRepository(Follow)
         private readonly followRepository: Repository<Follow>,
+        @InjectRepository(Reel)
+        private readonly reelRepository: Repository<Reel>,
+        @Optional() @Inject('REDIS_CLIENT')
+        private readonly redisClient: any,
     ) { }
 
     async createStartup(userId: string, dto: any) {
@@ -23,14 +28,127 @@ export class StartupsService {
             throw new ConflictException('Startup username already taken');
         }
 
+        // Explicit field mapping — never spread the full DTO to avoid unknown field errors
         const startup = this.startupRepository.create({
-            ...dto,
             founderId: userId,
-            // Map single industry to legacy field if needed, or just use industries array
+            name: dto.name,
+            username: dto.username,
+            tagline: dto.tagline || null,
+            description: dto.description || dto.shortDescription || null,
             industry: dto.industries?.[0] || null,
+            industries: dto.industries || [],
+            stage: dto.stage || null,
+            raisingAmount: dto.raisingAmount || null,
+            equityPercentage: dto.equityPercentage || null,
+            revenue: dto.revenue || null,
+            website: dto.website || null,
+            logoUrl: dto.logoUrl || null,
+            location: dto.location || null,
+            founders: dto.founders || [],
+            verification: dto.verification || null,
+            pitchVideoUrl: dto.pitchVideoUrl || null,
+            pitchDeckUrl: dto.pitchDeckUrl || null,
+            socialLinks: dto.socialLinks || null,
+            teamMembers: dto.teamMembers || [],
+            categoryTags: dto.categoryTags || [],
+            hashtags: Array.isArray(dto.hashtags)
+                ? dto.hashtags.map((t: string) => t.replace(/^#/, '').toLowerCase())
+                : typeof dto.hashtags === 'string' && dto.hashtags.trim()
+                    ? dto.hashtags.replace(/#/g, '').split(/[\s,]+/).filter(Boolean).map((t: string) => t.toLowerCase())
+                    : [],
         });
 
-        return this.startupRepository.save(startup);
+        const saved = (await this.startupRepository.save(startup)) as unknown as Startup;
+
+        // Auto-create a Reel from the pitch video so it appears in the feed immediately
+        if (dto.pitchVideoUrl) {
+            try {
+                const hashtags: string[] = (startup.hashtags || []);
+                if (startup.industries?.length) {
+                    hashtags.push(...startup.industries.map((i: string) => i.toLowerCase().replace(/[\s/]+/g, '')));
+                }
+
+                const reel = this.reelRepository.create({
+                    startupId: saved.id,
+                    title: saved.name,
+                    description: saved.description || '',
+                    videoUrl: dto.pitchVideoUrl,
+                    hashtags: [...new Set(hashtags)],
+                });
+                await this.reelRepository.save(reel);
+
+                // Flush the for-you feed cache so the new reel is visible immediately
+                try {
+                    if (this.redisClient) {
+                        const keys: string[] = [];
+                        let cursor = 0;
+                        do {
+                            const result = await this.redisClient.scan(cursor, { MATCH: 'feed:for_you:*', COUNT: 100 });
+                            cursor = result.cursor;
+                            keys.push(...result.keys);
+                        } while (cursor !== 0);
+                        if (keys.length > 0) {
+                            await this.redisClient.del(keys);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not flush feed cache:', e.message);
+                }
+            } catch (reelErr) {
+                console.error('Failed to auto-create reel for startup:', reelErr.message);
+                // Don't fail the whole registration — reel can be re-published via /startups/my/publish-reel
+            }
+        }
+
+        return saved;
+    }
+
+    /**
+     * Manually publish (or re-publish) the startup's pitch video as a Reel.
+     * Safe to call multiple times — creates Reel if none exists, updates if it does.
+     */
+    async publishPitchReel(userId: string) {
+        const startup = await this.startupRepository.findOne({
+            where: { founderId: userId },
+        });
+
+        if (!startup) {
+            throw new NotFoundException('Startup not found');
+        }
+
+        if (!startup.pitchVideoUrl) {
+            throw new NotFoundException('No pitch video uploaded for this startup');
+        }
+
+        // Check if a reel already exists for this startup
+        const existingReel = await this.reelRepository.findOne({
+            where: { startupId: startup.id },
+        });
+
+        if (existingReel) {
+            // Update existing reel with the current video URL
+            existingReel.videoUrl = startup.pitchVideoUrl;
+            existingReel.title = startup.name;
+            existingReel.description = startup.description || '';
+            await this.reelRepository.save(existingReel);
+            return { message: 'Pitch reel updated', reelId: existingReel.id };
+        }
+
+        // Create a new reel
+        const hashtags: string[] = [];
+        if (startup.industries?.length) {
+            hashtags.push(...startup.industries.map((i: string) => i.toLowerCase().replace(/[\s/]+/g, '')));
+        }
+
+        const reel = this.reelRepository.create({
+            startupId: startup.id,
+            title: startup.name,
+            description: startup.description || '',
+            videoUrl: startup.pitchVideoUrl,
+            hashtags: [...new Set(hashtags)],
+        });
+        const saved = await this.reelRepository.save(reel);
+        return { message: 'Pitch reel published', reelId: saved.id };
     }
 
     async getStartup(startupId: string) {
@@ -88,6 +206,32 @@ export class StartupsService {
         await this.startupRepository.decrement({ id: startupId }, 'followerCount', 1);
 
         return { message: 'Startup unfollowed successfully' };
+    }
+
+    async getMyStartup(userId: string) {
+        return this.startupRepository.findOne({
+            where: { founderId: userId },
+            relations: ['founder', 'reels'],
+        });
+    }
+
+    async updateStartup(userId: string, startupId: string, dto: any) {
+        const startup = await this.startupRepository.findOne({
+            where: { id: startupId, founderId: userId },
+        });
+
+        if (!startup) {
+            throw new NotFoundException('Startup not found or you are not the owner');
+        }
+
+        // Check username uniqueness if being changed
+        if (dto.username && dto.username !== startup.username) {
+            const existing = await this.startupRepository.findOne({ where: { username: dto.username } });
+            if (existing) throw new ConflictException('Username already taken');
+        }
+
+        Object.assign(startup, dto);
+        return this.startupRepository.save(startup);
     }
 
     async getUserFollowedStartups(userId: string) {

@@ -8,8 +8,10 @@ import { ReelShare } from './entities/reel-share.entity';
 import { ReelSave } from './entities/reel-save.entity';
 import { ReelView } from './entities/reel-view.entity';
 import { Follow } from '../startups/entities/follow.entity';
+import { Startup } from '../startups/entities/startup.entity';
+import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { RedisService } from '../config/redis.config';
-import { FeedQueryDto, CreateCommentDto, ShareReelDto } from './dto/reels.dto';
+import { FeedQueryDto, CreateCommentDto, ShareReelDto, CreateReelDto } from './dto/reels.dto';
 
 @Injectable()
 export class ReelsService {
@@ -28,11 +30,51 @@ export class ReelsService {
         private readonly reelViewRepository: Repository<ReelView>,
         @InjectRepository(Follow)
         private readonly followRepository: Repository<Follow>,
+        @InjectRepository(Startup)
+        private readonly startupRepository: Repository<Startup>,
+        @InjectRepository(Notification)
+        private readonly notificationRepository: Repository<Notification>,
         @Inject('REDIS_CLIENT')
         private readonly redisClient: any,
     ) { }
 
     private redisService = new RedisService(this.redisClient);
+
+    /**
+     * Create or update a reel for the current user's startup.
+     * Called from POST /reels (frontend explicit publish).
+     */
+    async createOrUpdateReel(userId: string, dto: CreateReelDto) {
+        const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
+        if (!startup) throw new NotFoundException('Startup not found for this user');
+
+        const hashtags = [...new Set([
+            ...(dto.hashtags || []).map(t => t.replace(/^#/, '').toLowerCase()),
+            ...(startup.industries || []).map(i => i.toLowerCase().replace(/[\s/]+/g, '')),
+        ])];
+
+        const existing = await this.reelRepository.findOne({ where: { startupId: startup.id } });
+        if (existing) {
+            existing.videoUrl = dto.videoUrl;
+            existing.title = dto.title || startup.name;
+            existing.description = dto.description || startup.description || '';
+            existing.hashtags = hashtags;
+            await this.reelRepository.save(existing);
+            await this.invalidateFeedCache(userId);
+            return { message: 'Reel updated', reelId: existing.id };
+        }
+
+        const reel = this.reelRepository.create({
+            startupId: startup.id,
+            title: dto.title || startup.name,
+            description: dto.description || startup.description || '',
+            videoUrl: dto.videoUrl,
+            hashtags,
+        });
+        await this.reelRepository.save(reel);
+        await this.invalidateFeedCache(userId);
+        return { message: 'Reel created', reelId: reel.id };
+    }
 
     /**
      * Get For You feed - Optimized with Redis caching
@@ -42,11 +84,15 @@ export class ReelsService {
         const { cursor, limit = 20 } = query;
         const cacheKey = `feed:for_you:${userId}:${cursor || 'start'}:${limit}`;
 
-        // Try cache first
-        const cached = await this.redisService.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
+        // Try cache first — but never let Redis errors crash the feed
+        try {
+            const cached = await this.redisService.get(cacheKey);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                // Only use cache if it has actual reels (don't serve empty cached responses)
+                if (parsed?.reels?.length > 0) return parsed;
+            }
+        } catch (_) { /* Redis unavailable — proceed to DB */ }
 
         // Build query with cursor-based pagination
         const queryBuilder = this.reelRepository
@@ -61,38 +107,42 @@ export class ReelsService {
             queryBuilder.andWhere('reel.createdAt < :cursor', { cursor: new Date(cursor) });
         }
 
+        // Filter by hashtag if provided
+        if (query.hashtag) {
+            const tag = query.hashtag.toLowerCase().replace(/^#/, '');
+            queryBuilder.andWhere('reel.hashtags @> ARRAY[:tag]::text[]', { tag });
+        }
+
         const reels = await queryBuilder.getMany();
+        console.log(`[ReelsService] getForYouFeed: found ${reels.length} reels for user ${userId}`);
 
         // Check if there's a next page
         const hasMore = reels.length > limit;
-        if (hasMore) {
-            reels.pop();
-        }
+        if (hasMore) reels.pop();
 
         const nextCursor = hasMore && reels.length > 0
             ? reels[reels.length - 1].createdAt.toISOString()
             : null;
 
-        // Check if user liked each reel
+        // Check likes / saves / follows — guard against empty arrays
         const reelIds = reels.map(r => r.id);
-        const userLikes = await this.reelLikeRepository.find({
-            where: { userId, reelId: In(reelIds) },
-        });
-        const likedReelIds = new Set(userLikes.map(like => like.reelId));
+        const startupIds = [...new Set(reels.map(r => r.startupId))];
 
-        // Check if user saved each reel
-        // Check if user saved each reel
-        const userSaves = await this.reelSaveRepository.find({
-            where: { userId, reelId: In(reelIds) },
-        });
-        const savedReelIds = new Set(userSaves.map(save => save.reelId));
+        const [userLikes, userSaves, userFollows] = await Promise.all([
+            reelIds.length > 0
+                ? this.reelLikeRepository.find({ where: { userId, reelId: In(reelIds) } })
+                : Promise.resolve([]),
+            reelIds.length > 0
+                ? this.reelSaveRepository.find({ where: { userId, reelId: In(reelIds) } })
+                : Promise.resolve([]),
+            startupIds.length > 0
+                ? this.followRepository.find({ where: { followerId: userId, startupId: In(startupIds) } })
+                : Promise.resolve([]),
+        ]);
 
-        // Check if user follows the startup of each reel
-        const startupIds = Array.from(new Set(reels.map(r => r.startupId)));
-        const userFollows = await this.followRepository.find({
-            where: { followerId: userId, startupId: In(startupIds) },
-        });
-        const followedStartupIds = new Set(userFollows.map(follow => follow.startupId));
+        const likedReelIds = new Set(userLikes.map(l => l.reelId));
+        const savedReelIds = new Set(userSaves.map(s => s.reelId));
+        const followedStartupIds = new Set(userFollows.map(f => f.startupId));
 
         const result = {
             reels: reels.map(reel => ({
@@ -105,8 +155,12 @@ export class ReelsService {
             hasMore,
         };
 
-        // Cache for 5 minutes
-        await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+        // Cache for 5 minutes — but don't let cache failure break the response
+        if (result.reels.length > 0) {
+            try {
+                await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+            } catch (_) { /* Redis unavailable — continue without caching */ }
+        }
 
         return result;
     }
@@ -193,7 +247,7 @@ export class ReelsService {
     }
 
     /**
-     * Like a reel - Updates denormalized counter
+     * Like / Support a reel — Updates denormalized counter + notifies startup owner
      */
     async likeReel(reelId: string, userId: string) {
         // Check if already liked
@@ -215,7 +269,25 @@ export class ReelsService {
         // Invalidate cache
         await this.invalidateFeedCache(userId);
 
-        return { message: 'Reel liked successfully' };
+        // Notify startup owner — fire and forget (don't block response)
+        this.reelRepository
+            .findOne({ where: { id: reelId }, relations: ['startup'] })
+            .then(async (reel) => {
+                if (reel?.startup?.founderId && reel.startup.founderId !== userId) {
+                    await this.notificationRepository.save(
+                        this.notificationRepository.create({
+                            userId: reel.startup.founderId,
+                            type: NotificationType.PITCH,
+                            title: 'Someone supported your pitch! 🤝',
+                            message: `Your pitch "${reel.title || reel.startup.name}" just received a new support.`,
+                            link: `/pitch/${reelId}`,
+                        }),
+                    );
+                }
+            })
+            .catch(() => { /* silently ignore notification errors */ });
+
+        return { message: 'Reel supported successfully' };
     }
 
     /**

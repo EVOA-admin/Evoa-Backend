@@ -11,6 +11,14 @@ export class CreateIncubatorDto {
 
     @IsOptional()
     @IsString()
+    tagline?: string;
+
+    @IsOptional()
+    @IsString()
+    officialEmail?: string;
+
+    @IsOptional()
+    @IsString()
     description?: string;
 
     @IsOptional()
@@ -42,4 +50,22 @@ export class CreateIncubatorDto {
     @IsOptional()
     @IsNumber()
     cohortSize?: number;
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    facilities?: string[];
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    gallery?: string[];
+
+    @IsOptional()
+    @IsObject()
+    socialLinks?: { linkedin?: string; instagram?: string; youtube?: string; twitter?: string };
+
+    @IsOptional()
+    @IsObject()
+    stats?: { startupsIncubated: number; fundsRaised: string; mentorsCount: number };
 }

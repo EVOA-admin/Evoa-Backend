@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, UseGuards, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, UseGuards, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { StartupsService } from './startups.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
@@ -21,11 +21,32 @@ export class StartupsController {
         return this.startupsService.createStartup(user.id, dto);
     }
 
+    @Get('my')
+    @ApiOperation({ summary: 'Get current founder\'s startup' })
+    @ApiResponse({ status: 200, description: 'My startup retrieved' })
+    async getMyStartup(@CurrentUser() user: User) {
+        return this.startupsService.getMyStartup(user.id);
+    }
+
+    @Post('my/publish-reel')
+    @ApiOperation({ summary: 'Publish or re-publish pitch video as a Reel' })
+    @ApiResponse({ status: 201, description: 'Pitch reel published/updated' })
+    async publishPitchReel(@CurrentUser() user: User) {
+        return this.startupsService.publishPitchReel(user.id);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get startup details' })
     @ApiResponse({ status: 200, description: 'Startup retrieved successfully' })
     async getStartup(@Param('id') startupId: string) {
         return this.startupsService.getStartup(startupId);
+    }
+
+    @Patch(':id')
+    @ApiOperation({ summary: 'Update startup (founder only)' })
+    @ApiResponse({ status: 200, description: 'Startup updated successfully' })
+    async updateStartup(@Param('id') startupId: string, @CurrentUser() user: User, @Body() dto: any) {
+        return this.startupsService.updateStartup(user.id, startupId, dto);
     }
 
     @Post(':id/follow')

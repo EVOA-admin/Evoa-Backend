@@ -14,11 +14,14 @@ export class Incubator {
     @JoinColumn({ name: 'user_id' })
     user: User;
 
-    @Column()
-    name: string;
-
     @Column('text', { array: true, default: '{}' })
     programTypes: string[]; // Accelerator, Incubator, Coworking, etc.
+
+    @Column({ nullable: true })
+    tagline: string;
+
+    @Column({ name: 'official_email', nullable: true })
+    officialEmail: string;
 
     @Column({ type: 'text', nullable: true })
     description: string;
@@ -43,6 +46,27 @@ export class Incubator {
 
     @Column({ name: 'cohort_size', nullable: true })
     cohortSize: number;
+
+    @Column('text', { array: true, default: '{}' })
+    facilities: string[];
+
+    @Column('text', { array: true, default: '{}' })
+    gallery: string[];
+
+    @Column({ type: 'jsonb', nullable: true, default: '{}' })
+    socialLinks: {
+        linkedin?: string;
+        instagram?: string;
+        youtube?: string;
+        twitter?: string;
+    };
+
+    @Column({ type: 'jsonb', nullable: true, default: '{}' })
+    stats: {
+        startupsIncubated: number;
+        fundsRaised: string;
+        mentorsCount: number;
+    };
 
     @Column({ default: false })
     verified: boolean;

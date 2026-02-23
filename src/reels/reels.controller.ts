@@ -4,7 +4,7 @@ import { ReelsService } from './reels.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { FeedQueryDto, CreateCommentDto, ShareReelDto } from './dto/reels.dto';
+import { FeedQueryDto, CreateCommentDto, ShareReelDto, CreateReelDto } from './dto/reels.dto';
 
 @ApiTags('Reels')
 @Controller('reels')
@@ -13,6 +13,13 @@ import { FeedQueryDto, CreateCommentDto, ShareReelDto } from './dto/reels.dto';
 export class ReelsController {
     constructor(private readonly reelsService: ReelsService) { }
 
+    @Post()
+    @ApiOperation({ summary: 'Create a reel (publish pitch video to feed)' })
+    @ApiResponse({ status: 201, description: 'Reel created/updated' })
+    async createReel(@CurrentUser() user: User, @Body() dto: CreateReelDto) {
+        return this.reelsService.createOrUpdateReel(user.id, dto);
+    }
+
     @Get()
     @ApiOperation({ summary: 'Get feed (For You or Following)' })
     @ApiResponse({ status: 200, description: 'Feed retrieved successfully' })
@@ -20,7 +27,8 @@ export class ReelsController {
         @CurrentUser() user: User,
         @Query() query: FeedQueryDto,
     ) {
-        if (query.type === 'following') {
+        const type = query.type || 'for_you';
+        if (type === 'following') {
             return this.reelsService.getFollowingFeed(user.id, query);
         }
         return this.reelsService.getForYouFeed(user.id, query);

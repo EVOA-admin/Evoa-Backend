@@ -21,6 +21,12 @@ export class Investor {
     type: string; // Angel, VC, PE, etc.
 
     @Column({ nullable: true })
+    designation: string; // Partner, Founder, etc.
+
+    @Column({ name: 'company_name', nullable: true })
+    companyName: string;
+
+    @Column({ nullable: true })
     tagline: string;
 
     @Column({ type: 'text', nullable: true })
@@ -49,6 +55,24 @@ export class Investor {
 
     @Column({ nullable: true })
     linkedin: string;
+
+    @Column({ type: 'jsonb', nullable: true, default: '{}' })
+    stats: {
+        startupsBacked: number;
+        capitalDeployed: string;
+        exits: number;
+    };
+
+    @Column({ type: 'jsonb', nullable: true, default: '[]' })
+    socialProof: {
+        quote: string;
+        author: string;
+        authorRole: string;
+        authorAvatar: string;
+    }[];
+
+    @Column({ type: 'jsonb', nullable: true, default: '[]' })
+    credentials: string[];
 
     @Column({ default: false })
     verified: boolean;

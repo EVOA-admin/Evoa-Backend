@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Incubator } from './entities/incubator.entity';
@@ -29,5 +29,15 @@ export class IncubatorsService {
 
     async findOne(id: string) {
         return this.incubatorRepository.findOne({ where: { id } });
+    }
+
+    async updateMyProfile(userId: string, dto: Partial<CreateIncubatorDto>) {
+        const incubator = await this.findMyIncubatorProfile(userId);
+        if (!incubator) {
+            throw new NotFoundException('Incubator profile not found');
+        }
+
+        Object.assign(incubator, dto);
+        return this.incubatorRepository.save(incubator);
     }
 }

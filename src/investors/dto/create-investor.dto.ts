@@ -11,6 +11,14 @@ export class CreateInvestorDto {
 
     @IsOptional()
     @IsString()
+    designation?: string;
+
+    @IsOptional()
+    @IsString()
+    companyName?: string;
+
+    @IsOptional()
+    @IsString()
     tagline?: string;
 
     @IsOptional()
@@ -50,4 +58,17 @@ export class CreateInvestorDto {
     @IsOptional()
     @IsUrl()
     linkedin?: string;
+
+    @IsOptional()
+    @IsObject()
+    stats?: { startupsBacked: number; capitalDeployed: string; exits: number };
+
+    @IsOptional()
+    @IsArray()
+    socialProof?: { quote: string; author: string; authorRole: string; authorAvatar: string }[];
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    credentials?: string[];
 }

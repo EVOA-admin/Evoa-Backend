@@ -43,6 +43,17 @@ export class User {
     @Index()
     role: UserRole;
 
+    @Column({ name: 'role_selected', default: false })
+    roleSelected: boolean;
+
+    @Column({ name: 'registration_completed', default: false })
+    registrationCompleted: boolean;
+
+    // Backward-compat alias — true when both flags are set
+    get onboardingCompleted(): boolean {
+        return this.roleSelected && this.registrationCompleted;
+    }
+
     @Column({ name: 'avatar_url', nullable: true })
     avatarUrl: string;
 

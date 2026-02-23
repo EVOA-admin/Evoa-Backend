@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Patch } from '@nestjs/common';
 import { IncubatorsService } from './incubators.service';
 import { CreateIncubatorDto } from './dto/create-incubator.dto';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
@@ -18,5 +18,10 @@ export class IncubatorsController {
     @Get('my')
     getMyProfile(@CurrentUser() user: User) {
         return this.incubatorsService.findMyIncubatorProfile(user.id);
+    }
+
+    @Patch('my')
+    updateMyProfile(@CurrentUser() user: User, @Body() dto: Partial<CreateIncubatorDto>) {
+        return this.incubatorsService.updateMyProfile(user.id, dto);
     }
 }

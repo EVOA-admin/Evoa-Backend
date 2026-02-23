@@ -23,12 +23,36 @@ export class UsersService {
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
+    /**
+     * Step 1 of onboarding: user picks a role.
+     * Sets roleSelected=true. For viewer role, also sets registrationCompleted=true
+     * since viewers don't have a registration form.
+     */
     async updateRole(userId: string, role: string) {
         const validRoles = Object.values(UserRole);
         if (!validRoles.includes(role as UserRole)) {
             throw new BadRequestException(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
         }
-        await this.userRepository.update({ id: userId }, { role: role as UserRole });
+
+        const isViewer = role === UserRole.VIEWER;
+        await this.userRepository.update(
+            { id: userId },
+            {
+                role: role as UserRole,
+                roleSelected: true,
+                // Viewers have no registration form, so mark complete immediately
+                registrationCompleted: isViewer,
+            }
+        );
+        return this.userRepository.findOne({ where: { id: userId } });
+    }
+
+    /**
+     * Step 2 of onboarding: user completes the role-specific registration form.
+     * Sets registrationCompleted=true.
+     */
+    async completeRegistration(userId: string) {
+        await this.userRepository.update({ id: userId }, { registrationCompleted: true });
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
@@ -49,7 +73,7 @@ export class UsersService {
             }
         }
 
-        // If still not found, create new user
+        // If still not found, create new user with default viewer role
         if (!user) {
             user = this.userRepository.create({
                 email,
@@ -57,6 +81,8 @@ export class UsersService {
                 fullName: user_metadata?.full_name || user_metadata?.name || email?.split('@')[0] || '',
                 avatarUrl: user_metadata?.avatar_url || '',
                 role: UserRole.VIEWER,
+                roleSelected: false,
+                registrationCompleted: false,
             });
             await this.userRepository.save(user);
         }

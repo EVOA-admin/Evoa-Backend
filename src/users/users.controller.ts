@@ -42,4 +42,11 @@ export class UsersController {
     async updateRole(@CurrentUser() user: User, @Body() dto: UpdateRoleDto) {
         return this.usersService.updateRole(user.id, dto.role);
     }
+
+    @Post('complete-registration')
+    @ApiOperation({ summary: 'Mark registration form as completed' })
+    @ApiResponse({ status: 200, description: 'Registration marked as complete' })
+    async completeRegistration(@CurrentUser() user: User) {
+        return this.usersService.completeRegistration(user.id);
+    }
 }

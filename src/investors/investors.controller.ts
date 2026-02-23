@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Patch } from '@nestjs/common';
 import { InvestorsService } from './investors.service';
 import { CreateInvestorDto } from './dto/create-investor.dto';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
@@ -18,5 +18,10 @@ export class InvestorsController {
     @Get('my')
     getMyProfile(@CurrentUser() user: User) {
         return this.investorsService.findMyInvestorProfile(user.id);
+    }
+
+    @Patch('my')
+    updateMyProfile(@CurrentUser() user: User, @Body() dto: Partial<CreateInvestorDto>) {
+        return this.investorsService.updateMyProfile(user.id, dto);
     }
 }
