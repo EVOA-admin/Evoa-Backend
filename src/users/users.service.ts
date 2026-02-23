@@ -24,7 +24,6 @@ export class UsersService {
     async getPublicProfile(userId: string) {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'fullName', 'avatarUrl', 'role', 'bio', 'company', 'location', 'website', 'createdAt'],
             relations: [
                 'startups',
                 'startups.reels',
