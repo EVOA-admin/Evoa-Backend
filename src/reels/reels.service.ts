@@ -44,8 +44,9 @@ export class ReelsService {
     private redisService = new RedisService(this.redisClient);
 
     /**
-     * Create or update a reel for the current user's startup.
-     * Called from POST /reels (frontend explicit publish).
+     * Create a new reel for the current user's startup.
+     * Each upload always creates a fresh reel — users can have unlimited reels.
+     * The feed is ordered by createdAt DESC so newest always appears first.
      */
     async createOrUpdateReel(userId: string, dto: CreateReelDto) {
         const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
@@ -56,17 +57,7 @@ export class ReelsService {
             ...(startup.industries || []).map(i => i.toLowerCase().replace(/[\s/]+/g, '')),
         ])];
 
-        const existing = await this.reelRepository.findOne({ where: { startupId: startup.id } });
-        if (existing) {
-            existing.videoUrl = dto.videoUrl;
-            existing.title = dto.title || startup.name;
-            existing.description = dto.description || startup.description || '';
-            existing.hashtags = hashtags;
-            await this.reelRepository.save(existing);
-            await this.invalidateFeedCache(userId);
-            return { message: 'Reel updated', reelId: existing.id };
-        }
-
+        // Always create a brand-new reel — never overwrite an existing one
         const reel = this.reelRepository.create({
             startupId: startup.id,
             title: dto.title || startup.name,
