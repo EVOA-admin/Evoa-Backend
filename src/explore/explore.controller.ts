@@ -36,6 +36,13 @@ export class ExploreController {
         return this.exploreService.getTopStartups();
     }
 
+    @Get('pitches/top')
+    @ApiOperation({ summary: 'Get top performing pitches' })
+    @ApiResponse({ status: 200, description: 'Top pitches retrieved' })
+    async getTopPitches() {
+        return this.exploreService.getTopPitches();
+    }
+
     @Get('startups/week')
     @ApiOperation({ summary: 'Get startups of the week' })
     @ApiResponse({ status: 200, description: 'Startups of the week retrieved' })

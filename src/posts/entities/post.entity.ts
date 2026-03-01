@@ -18,6 +18,11 @@ export class Post {
     @JoinColumn({ name: 'user_id' })
     user: User;
 
+    /** Populated only when the post author is a startup — links post → startup for stats enrichment */
+    @Column({ name: 'startup_id', nullable: true })
+    @Index()
+    startupId: string;
+
     @Column({ name: 'image_url', nullable: true })
     imageUrl: string;
 
@@ -35,6 +40,10 @@ export class Post {
 
     @Column({ name: 'share_count', default: 0 })
     shareCount: number;
+
+    /** Denormalized count of unique website clicks — incremented when a user clicks the link for the first time */
+    @Column({ name: 'click_through_count', default: 0 })
+    clickThroughCount: number;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

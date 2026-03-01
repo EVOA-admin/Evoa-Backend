@@ -198,6 +198,21 @@ export class ExploreService {
         return startups;
     }
 
+    async getTopPitches() {
+        const cacheKey = 'top:pitches';
+        const cached = await this.cacheGet(cacheKey);
+        if (cached) return cached;
+
+        const reels = await this.reelRepository.find({
+            relations: ['startup', 'startup.founder'],
+            order: { viewCount: 'DESC' },
+            take: 12,
+        });
+
+        await this.cacheSet(cacheKey, reels, 1800);
+        return reels;
+    }
+
     async getStartupsOfTheWeek() {
         const cacheKey = 'startups:week';
         const cached = await this.cacheGet(cacheKey);
