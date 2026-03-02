@@ -11,12 +11,14 @@ import { UsersModule } from '../users/users.module';
 
 import { AuthModule } from '../auth/auth.module';
 import { redisClientFactory, RedisService } from '../config/redis.config';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Startup, Follow, Reel, Notification, User]),
         UsersModule,
         AuthModule,
+        AiModule,
     ],
     controllers: [StartupsController],
     providers: [StartupsService, redisClientFactory, RedisService],

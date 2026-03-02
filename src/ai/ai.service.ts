@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { InvestorAiLog } from './entities/investor-ai-log.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { RedisService } from '../config/redis.config';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface AiAnalysisResponse {
     summary: string;
@@ -21,9 +22,70 @@ export class AiService {
         private readonly startupRepository: Repository<Startup>,
         @Inject('REDIS_CLIENT')
         private readonly redisClient: any,
-    ) { }
+    ) {
+        this.genAI = new GoogleGenerativeAI("AIzaSyBIp7j30P_JWR2nS8tsfclYgaZ38QVWC2k");
+    }
 
     private redisService = new RedisService(this.redisClient);
+    private genAI: GoogleGenerativeAI;
+
+    /**
+     * Ask Gemini a specific analytical question about a startup based on context
+     */
+    async analyzeStartup(startupId: string, investorId: string, question: string): Promise<{ answer: string }> {
+        const startup = await this.startupRepository.findOne({
+            where: { id: startupId },
+            relations: ['founder'],
+        });
+
+        if (!startup) {
+            throw new NotFoundException('Startup not found');
+        }
+
+        const prompt = `
+            You are an expert startup investment analyst, embedded in an app called EVOA.
+            An investor is asking you the following question about a startup named "${startup.name}".
+            
+            Here is the factual context available from their profile:
+            - Name: ${startup.name}
+            - Industry: ${startup.industry}
+            - Stage: ${startup.stage}
+            - Brief Description: ${startup.description}
+            - Raising Amount: $${startup.raisingAmount}
+            - Equity Offered: ${startup.equityPercentage}%
+            - Current Revenue: $${startup.revenue}
+            - Pitch Deck Link: ${startup.pitchDeckUrl || 'Not provided'}
+            
+            Investor's Question: "${question}"
+            
+            Rules for your response:
+            1. Be crisp, concise, and structured. Use short paragraphs or bullet points if helpful.
+            2. Do not include introductory fluff (like "Here is the summary...").
+            3. Answer directly based ONLY on the provided context. If the context does not contain the necessary information (e.g. they ask about risks but the description is vague), deduce intelligently using your general industry knowledge, but clarify this is an assumption based on the industry.
+            4. Keep the tone professional, analytical, and investor-focused.
+        `;
+
+        try {
+            const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
+
+            // Log the custom question interaction
+            const log = this.aiLogRepository.create({
+                startupId,
+                investorId,
+                actionType: 'prompt',
+                metadata: { question, prompt },
+                aiResponse: { custom_answer: responseText },
+            });
+            await this.aiLogRepository.save(log);
+
+            return { answer: responseText };
+        } catch (error) {
+            console.error("Gemini API Error:", error);
+            return { answer: "I apologize, but I am currently unable to analyze this startup's data. Please check back later." };
+        }
+    }
 
     /**
      * Get AI analysis for a startup

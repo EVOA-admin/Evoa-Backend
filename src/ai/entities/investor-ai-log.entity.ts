@@ -23,13 +23,14 @@ export class InvestorAiLog {
     @JoinColumn({ name: 'investor_id' })
     investor: User;
 
+    @Column({ name: 'action_type', nullable: true })
+    actionType: string;
+
+    @Column({ name: 'metadata', type: 'jsonb', nullable: true })
+    metadata: any;
+
     @Column({ name: 'ai_response', type: 'jsonb' })
-    aiResponse: {
-        summary: string;
-        market: string;
-        risks: string[];
-        questions_to_ask: string[];
-    };
+    aiResponse: any;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

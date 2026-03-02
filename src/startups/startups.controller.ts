@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, UseGuards, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, UseGuards, Body, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { StartupsService } from './startups.service';
+import { AiService } from '../ai/ai.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -11,7 +12,10 @@ import { CreateStartupDto } from './dto/create-startup.dto';
 @UseGuards(SupabaseAuthGuard)
 @ApiBearerAuth()
 export class StartupsController {
-    constructor(private readonly startupsService: StartupsService) { }
+    constructor(
+        private readonly startupsService: StartupsService,
+        private readonly aiService: AiService
+    ) { }
 
     @Post()
     @ApiOperation({ summary: 'Create a startup profile' })
@@ -40,6 +44,19 @@ export class StartupsController {
     @ApiResponse({ status: 200, description: 'Startup retrieved successfully' })
     async getStartup(@Param('id') startupId: string) {
         return this.startupsService.getStartup(startupId);
+    }
+
+    @Post(':id/analyze')
+    @ApiOperation({ summary: 'Ask AI Analyst a question about the startup' })
+    async analyzeStartup(
+        @Param('id') startupId: string,
+        @CurrentUser() user: User,
+        @Body() body: { question: string }
+    ) {
+        if (user.role !== 'investor' && user.role !== 'incubator') {
+            throw new ForbiddenException('Only investors can directly access the AI Analyst');
+        }
+        return this.aiService.analyzeStartup(startupId, user.id, body.question);
     }
 
     @Get(':id/follow-status')
