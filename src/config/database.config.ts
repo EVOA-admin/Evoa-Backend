@@ -18,6 +18,10 @@ export const dataSourceOptions: DataSourceOptions = {
         max: 20,
         min: 5,
         idleTimeoutMillis: 30000,
+        ssl: {
+            rejectUnauthorized: false,
+        },
+        family: 4,
     },
 };
 

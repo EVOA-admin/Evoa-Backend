@@ -65,6 +65,7 @@ export const redisClientFactory = {
 
         const client = createClient({
             url: process.env.REDIS_URL,
+            socket: { tls: true },
         });
 
         client.on('error', (err) =>
@@ -74,7 +75,12 @@ export const redisClientFactory = {
             console.log('✅ Redis Client Connected'),
         );
 
-        await client.connect();
+        try {
+            await client.connect();
+        } catch (err) {
+            console.warn('⚠️ Redis connection failed, disabling gracefully:', err);
+            return null;
+        }
         return client;
     },
 };
