@@ -6,6 +6,10 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import dns from 'dns';
+
+// Force IPv4 to prevent Supabase ENETUNREACH on Render
+dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
