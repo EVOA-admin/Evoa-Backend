@@ -58,17 +58,13 @@ export const redisClientFactory = {
     provide: 'REDIS_CLIENT',
     useFactory: async () => {
         // 🚫 Redis not configured → disable gracefully
-        if (!process.env.REDIS_HOST) {
-            console.warn('⚠️ Redis is disabled (no REDIS_HOST)');
+        if (!process.env.REDIS_URL) {
+            console.warn('⚠️ Redis is disabled (no REDIS_URL)');
             return null;
         }
 
         const client = createClient({
-            socket: {
-                host: process.env.REDIS_HOST,
-                port: parseInt(process.env.REDIS_PORT || '6379', 10),
-            },
-            password: process.env.REDIS_PASSWORD || undefined,
+            url: process.env.REDIS_URL,
         });
 
         client.on('error', (err) =>

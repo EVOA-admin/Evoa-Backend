@@ -23,25 +23,8 @@ class EnvironmentVariables {
     @IsString()
     JWT_EXPIRATION: string = '7d';
 
-    @IsOptional()
     @IsString()
-    DATABASE_HOST: string = 'localhost';
-
-    @IsOptional()
-    @IsNumber()
-    DATABASE_PORT: number = 5432;
-
-    @IsOptional()
-    @IsString()
-    DATABASE_USERNAME: string = 'postgres';
-
-    @IsOptional()
-    @IsString()
-    DATABASE_PASSWORD: string = '';
-
-    @IsOptional()
-    @IsString()
-    DATABASE_NAME: string = 'evoa';
+    DATABASE_URL: string;
 
     @IsOptional()
     @IsString()

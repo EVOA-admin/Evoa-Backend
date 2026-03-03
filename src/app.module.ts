@@ -25,7 +25,10 @@ import { StoriesModule } from './stories/stories.module';
             envFilePath: '.env',
             validate,
         }),
-        TypeOrmModule.forRoot(dataSourceOptions),
+        TypeOrmModule.forRoot({
+            ...dataSourceOptions,
+            autoLoadEntities: true,
+        }),
         ThrottlerModule.forRoot([
             {
                 ttl: parseInt(process.env.RATE_LIMIT_TTL || '60000', 10),
