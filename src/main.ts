@@ -21,12 +21,15 @@ async function bootstrap() {
     app.use(helmet());
 
     // CORS - Support multiple origins
-    const corsOrigins = process.env.CORS_ORIGIN?.split(',').map(origin => origin.trim()) || ['http://localhost:5173'];
     app.enableCors({
-        origin: corsOrigins,
-        credentials: true,
+        origin: [
+            'https://test.evoa.co.in',
+            'http://localhost:5173',
+            'http://localhost:3000'
+        ],
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
     });
 
     // Compression
