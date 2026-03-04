@@ -28,8 +28,10 @@ async function bootstrap() {
             'http://localhost:3000'
         ],
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
         credentials: true,
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
     });
 
     // Compression
