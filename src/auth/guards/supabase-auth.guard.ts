@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { supabaseAdmin } from '../../config/supabase.config';
+import { getSupabaseAdmin } from '../../config/supabase.config';
 import { User, UserRole } from '../../users/entities/user.entity';
 
 @Injectable()
@@ -21,8 +21,9 @@ export class SupabaseAuthGuard implements CanActivate {
 
         try {
             // Use service-role admin client — reliably verifies all Supabase JWTs
-            // including Google OAuth tokens
-            const { data, error } = await supabaseAdmin.auth.getUser(token);
+            // including Google OAuth tokens signed with ES256
+            const adminClient = getSupabaseAdmin();
+            const { data, error } = await adminClient.auth.getUser(token);
 
             if (error || !data.user) {
                 console.error('[SupabaseAuthGuard] Token verification failed:', {

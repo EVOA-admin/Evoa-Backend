@@ -1,11 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
-// Lazy-initialized singletons
-// Supabase clients are created on first access, not at module import time.
-// This guarantees the environment variables are fully resolved by the time
-// the client is constructed (critical for Render where env vars are injected
-// after container start, not available during the initial module-load phase).
+// Lazy-initialized singletons — read env vars at first call, not at import.
+// This is required on Render where env vars are injected at container start
+// but module-level code runs before that injection completes.
 // ---------------------------------------------------------------------------
 
 let _supabaseClient: SupabaseClient | null = null;
@@ -16,9 +14,10 @@ export function getSupabaseClient(): SupabaseClient {
         const url = process.env.SUPABASE_URL;
         const key = process.env.SUPABASE_ANON_KEY;
         if (!url || !key) {
-            throw new Error('Missing SUPABASE_URL or SUPABASE_ANON_KEY environment variable');
+            throw new Error('[Supabase] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
         }
         _supabaseClient = createClient(url, key);
+        console.log('[Supabase] Anon client initialized for URL:', url);
     }
     return _supabaseClient;
 }
@@ -28,7 +27,7 @@ export function getSupabaseAdmin(): SupabaseClient {
         const url = process.env.SUPABASE_URL;
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (!url || !key) {
-            throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variable');
+            throw new Error('[Supabase] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
         }
         _supabaseAdmin = createClient(url, key, {
             auth: {
@@ -36,22 +35,23 @@ export function getSupabaseAdmin(): SupabaseClient {
                 persistSession: false,
             },
         });
+        console.log('[Supabase] Admin client initialized for URL:', url);
     }
     return _supabaseAdmin;
 }
 
 // ---------------------------------------------------------------------------
-// Legacy named exports — kept for backward compatibility so no other files
-// need to be changed. These are now thin proxies to the lazy getters.
+// Named convenience exports that call the lazy getters each time.
+// Deliberately NOT using Proxy to avoid `this`-context loss on nested calls.
 // ---------------------------------------------------------------------------
-export const supabaseClient = new Proxy({} as SupabaseClient, {
-    get(_target, prop) {
-        return (getSupabaseClient() as any)[prop];
-    },
-});
+export const supabaseClient = {
+    get auth() { return getSupabaseClient().auth; },
+    get storage() { return getSupabaseClient().storage; },
+    get realtime() { return getSupabaseClient().realtime; },
+} as unknown as SupabaseClient;
 
-export const supabaseAdmin = new Proxy({} as SupabaseClient, {
-    get(_target, prop) {
-        return (getSupabaseAdmin() as any)[prop];
-    },
-});
+export const supabaseAdmin = {
+    get auth() { return getSupabaseAdmin().auth; },
+    get storage() { return getSupabaseAdmin().storage; },
+    get realtime() { return getSupabaseAdmin().realtime; },
+} as unknown as SupabaseClient;
