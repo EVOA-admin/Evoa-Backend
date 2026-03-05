@@ -23,8 +23,9 @@ class EnvironmentVariables {
     @IsString()
     JWT_EXPIRATION: string = '7d';
 
+    @IsOptional()
     @IsString()
-    DATABASE_URL: string;
+    DATABASE_URL: string = '';
 
     @IsOptional()
     @IsString()
