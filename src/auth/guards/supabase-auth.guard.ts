@@ -25,6 +25,11 @@ export class SupabaseAuthGuard implements CanActivate {
             const { data, error } = await supabaseAdmin.auth.getUser(token);
 
             if (error || !data.user) {
+                console.error('[SupabaseAuthGuard] Token verification failed:', {
+                    supabaseError: error?.message,
+                    supabaseStatus: (error as any)?.status,
+                    tokenPrefix: token.substring(0, 20) + '...',
+                });
                 throw new UnauthorizedException('Invalid or expired token');
             }
 
