@@ -11,10 +11,7 @@ export const dataSourceOptions: DataSourceOptions = {
     },
     entities: ['dist/**/*.entity.js'],
     migrations: ['dist/migrations/*.js'],
-    // NOTE: synchronize: true auto-creates tables from entities on startup.
-    // This is intentional for initial Supabase deployment to create the schema.
-    // Disable and use migrations once the schema is stable in production.
-    synchronize: true,
+    synchronize: false,
     logging: process.env.NODE_ENV === 'development',
     poolSize: 20,
     extra: {
