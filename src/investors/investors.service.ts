@@ -1,7 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Investor } from './entities/investor.entity';
+import { User } from '../users/entities/user.entity';
 import { CreateInvestorDto } from './dto/create-investor.dto';
 
 @Injectable()
@@ -9,26 +10,35 @@ export class InvestorsService {
     constructor(
         @InjectRepository(Investor)
         private readonly investorRepository: Repository<Investor>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
     ) { }
 
     async create(userId: string, dto: CreateInvestorDto) {
-        // Check if user already has an investor profile?
-        // Let's allow multiple for now if needed, or strictly one.
-        // For simplicity, let's assume a user can create multiple investor profiles (e.g. angel + VC fund)
-        // bit usually it's one.
-
         const investor = this.investorRepository.create({
             ...dto,
             userId,
         });
 
-        return this.investorRepository.save(investor);
+        const saved = await this.investorRepository.save(investor);
+
+        // Sync registration name & avatar back to the users table so that
+        // story bubbles, post headers, and all UI components show the
+        // user's chosen identity instead of the Google email prefix.
+        const userUpdate: Partial<User> = {};
+        if (dto.name) userUpdate.fullName = dto.name;
+        if (dto.logoUrl) userUpdate.avatarUrl = dto.logoUrl;
+        if (Object.keys(userUpdate).length > 0) {
+            await this.userRepository.update({ id: userId }, userUpdate);
+        }
+
+        return saved;
     }
 
     async findMyInvestorProfile(userId: string) {
         return this.investorRepository.findOne({
             where: { userId },
-            order: { createdAt: 'DESC' } // Get latest if multiple
+            order: { createdAt: 'DESC' }
         });
     }
 
@@ -43,6 +53,16 @@ export class InvestorsService {
         }
 
         Object.assign(investor, dto);
-        return this.investorRepository.save(investor);
+        const saved = await this.investorRepository.save(investor);
+
+        // Keep users table in sync when profile is updated too
+        const userUpdate: Partial<User> = {};
+        if (dto.name) userUpdate.fullName = dto.name;
+        if (dto.logoUrl) userUpdate.avatarUrl = dto.logoUrl;
+        if (Object.keys(userUpdate).length > 0) {
+            await this.userRepository.update({ id: userId }, userUpdate);
+        }
+
+        return saved;
     }
 }

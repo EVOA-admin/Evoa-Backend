@@ -3,11 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, IsNull } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { PostLike } from './entities/post-like.entity';
+import { PostSave } from './entities/post-save.entity';
 import { PostComment } from './entities/post-comment.entity';
 import { PostWebsiteClick } from './entities/post-website-click.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { ReelView } from '../reels/entities/reel-view.entity';
 import { User } from '../users/entities/user.entity';
+import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 
 @Injectable()
@@ -17,6 +19,8 @@ export class PostsService {
         private readonly postRepo: Repository<Post>,
         @InjectRepository(PostLike)
         private readonly postLikeRepo: Repository<PostLike>,
+        @InjectRepository(PostSave)
+        private readonly postSaveRepo: Repository<PostSave>,
         @InjectRepository(PostComment)
         private readonly postCommentRepo: Repository<PostComment>,
         @InjectRepository(PostWebsiteClick)
@@ -27,7 +31,22 @@ export class PostsService {
         private readonly reelViewRepo: Repository<ReelView>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectRepository(Notification)
+        private readonly notificationRepo: Repository<Notification>,
     ) { }
+
+    // ────────────────────────────────────────────────── DELETE POST ──────────
+
+    async deletePost(postId: string, userId: string) {
+        const post = await this.postRepo.findOne({ where: { id: postId } });
+        if (!post) throw new NotFoundException('Post not found');
+        if (post.userId !== userId) {
+            const { ForbiddenException } = await import('@nestjs/common');
+            throw new ForbiddenException('You can only delete your own posts');
+        }
+        await this.postRepo.softDelete({ id: postId });
+        return { message: 'Post deleted' };
+    }
 
     // ─────────────────────────────────────────────────── GET ALL POSTS ──────
 
@@ -217,6 +236,23 @@ export class PostsService {
         if (!existing) {
             await this.postLikeRepo.save(this.postLikeRepo.create({ postId, userId }));
             await this.postRepo.increment({ id: postId }, 'likeCount', 1);
+
+            // Notify the post owner — skip if they liked their own post
+            if (post.userId !== userId) {
+                try {
+                    const liker = await this.userRepo.findOne({ where: { id: userId } });
+                    const likerName = liker?.fullName || liker?.email?.split('@')[0] || 'Someone';
+                    await this.notificationRepo.save(
+                        this.notificationRepo.create({
+                            userId: post.userId,
+                            type: NotificationType.PITCH,
+                            title: 'New Like',
+                            message: `${likerName} liked your post`,
+                            link: `/post/${postId}`,
+                        }),
+                    );
+                } catch (_) { /* non-critical — never block the like */ }
+            }
         }
         return { message: 'Post liked' };
     }
@@ -264,6 +300,27 @@ export class PostsService {
         const comment = this.postCommentRepo.create({ postId, userId, content: content.trim() });
         await this.postCommentRepo.save(comment);
         await this.postRepo.increment({ id: postId }, 'commentCount', 1);
+
+        // Notify the post owner — skip if they commented on their own post
+        if (post.userId !== userId) {
+            try {
+                const commenter = await this.userRepo.findOne({ where: { id: userId } });
+                const commenterName = commenter?.fullName || commenter?.email?.split('@')[0] || 'Someone';
+                const preview = content.trim().length > 50
+                    ? content.trim().slice(0, 50) + '…'
+                    : content.trim();
+                await this.notificationRepo.save(
+                    this.notificationRepo.create({
+                        userId: post.userId,
+                        type: NotificationType.PITCH,
+                        title: 'New Comment',
+                        message: `${commenterName} commented: "${preview}"`,
+                        link: `/post/${postId}`,
+                    }),
+                );
+            } catch (_) { /* non-critical */ }
+        }
+
         return { message: 'Comment added', comment };
     }
 
@@ -301,5 +358,27 @@ export class PostsService {
             .andWhere('pc.deleted_at IS NULL')
             .orderBy('pc.createdAt', 'DESC')
             .getRawMany();
+    }
+
+    // ────────────────────────────────────────────────────────────── SAVES ─────
+
+    async savePost(postId: string, userId: string) {
+        const post = await this.postRepo.findOne({ where: { id: postId } });
+        if (!post) throw new NotFoundException('Post not found');
+
+        const existing = await this.postSaveRepo.findOne({ where: { postId, userId } });
+        if (existing) return { message: 'Already saved' };
+
+        const save = this.postSaveRepo.create({ postId, userId });
+        await this.postSaveRepo.save(save);
+        return { message: 'Post saved', isSaved: true };
+    }
+
+    async unsavePost(postId: string, userId: string) {
+        const save = await this.postSaveRepo.findOne({ where: { postId, userId } });
+        if (!save) return { message: 'Not saved' };
+
+        await this.postSaveRepo.delete({ id: save.id });
+        return { message: 'Post unsaved', isSaved: false };
     }
 }

@@ -66,7 +66,12 @@ export class ReelsService {
             hashtags,
         });
         await this.reelRepository.save(reel);
+
+        // Invalidate the uploader's own cache AND all other users' for_you feeds
+        // so the new reel appears immediately on the public feed for everyone.
         await this.invalidateFeedCache(userId);
+        await this.invalidateAllForYouCaches();
+
         return { message: 'Reel created', reelId: reel.id };
     }
 
@@ -476,7 +481,6 @@ export class ReelsService {
             ];
 
             for (const pattern of patterns) {
-                // Use SCAN to find all matching keys and delete them
                 let cursor = '0';
                 do {
                     const [nextCursor, keys] = await this.redisClient.scan(
@@ -493,8 +497,33 @@ export class ReelsService {
                 } while (cursor !== '0');
             }
         } catch (err) {
-            // Cache invalidation failure should not break the main operation
             console.error('Cache invalidation error:', err);
+        }
+    }
+
+    /**
+     * Wipe ALL users' for_you feed caches so a newly published reel
+     * appears immediately in the public feed without waiting for TTL expiry.
+     */
+    private async invalidateAllForYouCaches() {
+        try {
+            if (!this.redisClient) return;
+            let cursor = '0';
+            do {
+                const [nextCursor, keys] = await this.redisClient.scan(
+                    cursor,
+                    'MATCH',
+                    'feed:for_you:*',
+                    'COUNT',
+                    200,
+                );
+                cursor = nextCursor;
+                if (keys.length > 0) {
+                    await this.redisClient.del(...keys);
+                }
+            } while (cursor !== '0');
+        } catch (err) {
+            console.error('[ReelsService] Global feed cache flush error:', err);
         }
     }
 }

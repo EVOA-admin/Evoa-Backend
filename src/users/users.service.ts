@@ -39,7 +39,27 @@ export class UsersService {
     }
 
     async updateProfile(userId: string, dto: UpdateProfileDto) {
-        await this.userRepository.update({ id: userId }, dto);
+        // Strip undefined/null fields so TypeORM doesn't generate an empty SET clause
+        const updatePayload: Partial<User> = {};
+        if (dto.fullName !== undefined) updatePayload.fullName = dto.fullName;
+        if (dto.bio !== undefined) updatePayload.bio = dto.bio;
+        if (dto.company !== undefined) updatePayload.company = dto.company;
+        if (dto.location !== undefined) updatePayload.location = dto.location;
+        if (dto.website !== undefined) updatePayload.website = dto.website;
+        if (dto.avatarUrl !== undefined) updatePayload.avatarUrl = dto.avatarUrl;
+        // role is excluded here — use /users/role endpoint for role changes
+
+        if (Object.keys(updatePayload).length === 0) {
+            // Nothing to update — just return current profile
+            return this.userRepository.findOne({ where: { id: userId } });
+        }
+
+        try {
+            await this.userRepository.update({ id: userId }, updatePayload);
+        } catch (err) {
+            console.error('[UsersService] updateProfile DB error:', err?.message || err);
+            throw err;
+        }
         return this.userRepository.findOne({ where: { id: userId } });
     }
 

@@ -27,6 +27,12 @@ export class PostsController {
         return this.postsService.createPost(user.id, dto);
     }
 
+    @Delete(':id')
+    @ApiOperation({ summary: 'Delete own post (soft delete)' })
+    async deletePost(@Param('id') postId: string, @CurrentUser() user: User) {
+        return this.postsService.deletePost(postId, user.id);
+    }
+
     @Get('me')
     @ApiOperation({ summary: "Get current user's posts" })
     async getMyPosts(@CurrentUser() user: User) {
@@ -83,5 +89,19 @@ export class PostsController {
     @ApiOperation({ summary: "Get investor/incubator comments only — Investor's Thoughts section" })
     async getInvestorThoughts(@Param('id') postId: string) {
         return this.postsService.getInvestorThoughts(postId);
+    }
+
+    // ── Saves ───────────────────────────────────────────────────────────────
+
+    @Post(':id/save')
+    @ApiOperation({ summary: 'Save a post (idempotent)' })
+    async savePost(@Param('id') postId: string, @CurrentUser() user: User) {
+        return this.postsService.savePost(postId, user.id);
+    }
+
+    @Delete(':id/save')
+    @ApiOperation({ summary: 'Unsave a post' })
+    async unsavePost(@Param('id') postId: string, @CurrentUser() user: User) {
+        return this.postsService.unsavePost(postId, user.id);
     }
 }

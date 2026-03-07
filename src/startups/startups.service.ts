@@ -66,6 +66,19 @@ export class StartupsService {
 
         const saved = (await this.startupRepository.save(startup)) as unknown as Startup;
 
+        // Sync the startup's name and logo back to the users table so story bubbles
+        // and post headers show registration identity, not the Google email prefix.
+        try {
+            const userUpdate: Partial<User> = {};
+            if (dto.name) userUpdate.fullName = dto.name;
+            if (dto.logoUrl) userUpdate.avatarUrl = dto.logoUrl;
+            if (Object.keys(userUpdate).length > 0) {
+                await this.userRepository.update({ id: userId }, userUpdate);
+            }
+        } catch (err) {
+            console.warn('[StartupsService] Failed to sync user profile fields:', err?.message);
+        }
+
         // Auto-create a Reel from the pitch video so it appears in the feed immediately
         if (dto.pitchVideoUrl) {
             try {
