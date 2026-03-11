@@ -3,10 +3,14 @@ import { User } from '../../users/entities/user.entity';
 import { Startup } from '../../startups/entities/startup.entity';
 
 export enum MeetingStatus {
+    SCHEDULED = 'scheduled',
+    ONGOING = 'ongoing',
+    COMPLETED = 'completed',
+    CANCELLED = 'cancelled',
+    // Legacy statuses kept for backwards-compat
     REQUESTED = 'requested',
     ACCEPTED = 'accepted',
     REJECTED = 'rejected',
-    COMPLETED = 'completed',
 }
 
 @Entity('meetings')
@@ -18,7 +22,7 @@ export class Meeting {
     @Index()
     investorId: string;
 
-    @ManyToOne(() => User, (user) => user.investorMeetings, { onDelete: 'CASCADE' })
+    @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'investor_id' })
     investor: User;
 
@@ -26,7 +30,7 @@ export class Meeting {
     @Index()
     startupId: string;
 
-    @ManyToOne(() => Startup, (startup) => startup.meetings, { onDelete: 'CASCADE' })
+    @ManyToOne(() => Startup, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'startup_id' })
     startup: Startup;
 
@@ -34,20 +38,28 @@ export class Meeting {
     @Index()
     founderId: string;
 
-    @ManyToOne(() => User, (user) => user.founderMeetings, { onDelete: 'CASCADE' })
+    @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'founder_id' })
     founder: User;
 
     @Column({
         type: 'enum',
         enum: MeetingStatus,
-        default: MeetingStatus.REQUESTED,
+        default: MeetingStatus.SCHEDULED,
     })
     @Index()
     status: MeetingStatus;
 
     @Column({ name: 'meeting_link', nullable: true })
     meetingLink: string;
+
+    /** Jitsi room identifier — used to construct the video call URL on the frontend */
+    @Column({ name: 'video_room_id', nullable: true })
+    videoRoomId: string;
+
+    /** The chat conversation where the meeting card was posted */
+    @Column({ name: 'conversation_id', nullable: true })
+    conversationId: string;
 
     @Column({ name: 'scheduled_at', type: 'timestamp', nullable: true })
     scheduledAt: Date;

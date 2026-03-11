@@ -52,6 +52,6 @@ export class PitchController {
         @CurrentUser() user: User,
         @Body() dto: ScheduleMeetingDto,
     ) {
-        return this.meetingsService.requestMeeting(user.id, startupId, dto);
+        return this.meetingsService.scheduleMeeting(user.id, startupId, dto);
     }
 }

@@ -39,7 +39,6 @@ export class UsersService {
     }
 
     async updateProfile(userId: string, dto: UpdateProfileDto) {
-        // Strip undefined/null fields so TypeORM doesn't generate an empty SET clause
         const updatePayload: Partial<User> = {};
         if (dto.fullName !== undefined) updatePayload.fullName = dto.fullName;
         if (dto.bio !== undefined) updatePayload.bio = dto.bio;
@@ -47,10 +46,8 @@ export class UsersService {
         if (dto.location !== undefined) updatePayload.location = dto.location;
         if (dto.website !== undefined) updatePayload.website = dto.website;
         if (dto.avatarUrl !== undefined) updatePayload.avatarUrl = dto.avatarUrl;
-        // role is excluded here — use /users/role endpoint for role changes
 
         if (Object.keys(updatePayload).length === 0) {
-            // Nothing to update — just return current profile
             return this.userRepository.findOne({ where: { id: userId } });
         }
 
@@ -63,9 +60,6 @@ export class UsersService {
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
-    /**
-     * Step 1 of onboarding: user picks a role.
-     */
     async updateRole(userId: string, role: string) {
         const validRoles = Object.values(UserRole);
         if (!validRoles.includes(role as UserRole)) {
@@ -84,47 +78,47 @@ export class UsersService {
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
-    /**
-     * Step 2 of onboarding: user completes the role-specific registration form.
-     */
     async completeRegistration(userId: string) {
         await this.userRepository.update({ id: userId }, { registrationCompleted: true });
         return this.userRepository.findOne({ where: { id: userId } });
     }
 
-    /**
-     * Get whether connectorId has connected with targetId.
-     */
+    /** Check whether connectorId follows targetId */
     async getConnectionStatus(targetUserId: string, connectorId: string) {
         if (targetUserId === connectorId) {
-            return { connected: false, connectionCount: 0, isOwnProfile: true };
+            return { connected: false, isFollowing: false, followerCount: 0, isOwnProfile: true };
         }
 
         const [connection, target] = await Promise.all([
             this.connectionRepository.findOne({
-                where: { connectorId, targetId: targetUserId },
+                where: { connectorId, targetId: targetUserId }
             }),
             this.userRepository.findOne({
                 where: { id: targetUserId },
-                select: ['id', 'connectionCount'],
+                select: ['id', 'connectionCount', 'role'],
             }),
         ]);
 
+        const isFollowing = !!connection;
         return {
-            connected: !!connection,
-            connectionCount: target?.connectionCount ?? 0,
+            connected: isFollowing,
+            isFollowing,
+            followerCount: target?.connectionCount ?? 0,
         };
     }
 
+    /** Alias for getConnectionStatus */
+    async getFollowStatus(targetUserId: string, followerId: string) {
+        return this.getConnectionStatus(targetUserId, followerId);
+    }
+
     /**
-     * Toggle connect/disconnect.
-     * - First click  → creates connection row, increments connectionCount, sends notification.
-     * - Second click → removes connection row, decrements connectionCount.
-     * Returns { connected, connectionCount }.
+     * Toggle follow / unfollow.
+     * Startups cannot be followed — they receive "Support" via /startups/:id/follow.
      */
     async toggleConnect(targetUserId: string, connectorId: string) {
         if (targetUserId === connectorId) {
-            return { message: 'Cannot connect with yourself', connected: false, connectionCount: 0 };
+            return { message: 'Cannot follow yourself', connected: false, isFollowing: false, followerCount: 0 };
         }
 
         const [target, connector] = await Promise.all([
@@ -142,43 +136,84 @@ export class UsersService {
             throw new BadRequestException('User not found');
         }
 
+        // Startups receive Support, not Follow
+        if (target.role === UserRole.STARTUP) {
+            throw new BadRequestException('Startups cannot be followed. Use the Support feature instead.');
+        }
+
         const existing = await this.connectionRepository.findOne({
             where: { connectorId, targetId: targetUserId },
         });
 
         if (existing) {
-            // — Disconnect —
+            // — Unfollow —
             await this.connectionRepository.remove(existing);
             const newCount = Math.max(0, (target.connectionCount || 0) - 1);
             await this.userRepository.update({ id: targetUserId }, { connectionCount: newCount });
-            return { connected: false, connectionCount: newCount };
+            return { connected: false, isFollowing: false, followerCount: newCount };
         }
 
-        // — Connect —
-        await this.connectionRepository.save(
-            this.connectionRepository.create({ connectorId, targetId: targetUserId }),
-        );
+        // — Follow —
+        await this.connectionRepository.save({
+            connectorId,
+            targetId: targetUserId,
+            connector: { id: connectorId } as any,
+            target: { id: targetUserId } as any,
+        });
 
         const newCount = (target.connectionCount || 0) + 1;
         await this.userRepository.update({ id: targetUserId }, { connectionCount: newCount });
 
-        // Send notification to the target (investors & incubators only)
-        if (target.role === UserRole.INVESTOR || target.role === UserRole.INCUBATOR) {
-            await this.notificationRepository.save(
-                this.notificationRepository.create({
-                    userId: target.id,
-                    type: NotificationType.SYSTEM,
-                    title: 'New Connection 🤝',
-                    message: `${connector.fullName || 'Someone'} connected with you!`,
-                    link: `/u/${connector.id}`,
-                }),
-            );
-        }
+        // Send "started following you" notification
+        await this.notificationRepository.save(
+            this.notificationRepository.create({
+                userId: target.id,
+                type: NotificationType.SYSTEM,
+                title: 'New Follower 👋',
+                message: `${connector.fullName || 'Someone'} started following you!`,
+                link: `/u/${connector.id}`,
+            }),
+        ).catch(() => { /* ignore */ });
 
-        return { connected: true, connectionCount: newCount };
+        return { connected: true, isFollowing: true, followerCount: newCount };
     }
 
-    /** @deprecated — kept for backward compat, now calls toggleConnect */
+    /** Alias for toggleConnect */
+    async toggleFollow(targetUserId: string, followerId: string) {
+        return this.toggleConnect(targetUserId, followerId);
+    }
+
+    /** List of users who follow the given user */
+    async getFollowers(userId: string) {
+        const connections = await this.connectionRepository.find({
+            where: { targetId: userId },
+            relations: ['connector'],
+            order: { createdAt: 'DESC' },
+        });
+        return connections.map(c => ({
+            id: c.connector?.id,
+            fullName: c.connector?.fullName,
+            avatarUrl: c.connector?.avatarUrl,
+            role: c.connector?.role,
+        }));
+    }
+
+    /** List of users that userId is following */
+    async getFollowing(userId: string) {
+        const connections = await this.connectionRepository.find({
+            where: { connectorId: userId },
+            relations: ['target'],
+            order: { createdAt: 'DESC' },
+        });
+        return connections.map(c => ({
+            id: c.target?.id,
+            fullName: c.target?.fullName,
+            avatarUrl: c.target?.avatarUrl,
+            role: c.target?.role,
+        }));
+    }
+
+    /** @deprecated — kept for backward compat */
     async trackConnectClick(targetUserId: string, clickerId: string) {
         return this.toggleConnect(targetUserId, clickerId);
     }
