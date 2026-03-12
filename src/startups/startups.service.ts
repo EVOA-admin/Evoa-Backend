@@ -187,7 +187,24 @@ export class StartupsService {
         const follow = await this.followRepository.findOne({
             where: { followerId: userId, startupId },
         });
-        return { isFollowing: !!follow };
+        const supported = !!follow;
+        return { isFollowing: supported, isSupported: supported };
+    }
+
+    /** Returns the list of users who support a startup */
+    async getSupporters(startupId: string) {
+        const follows = await this.followRepository.find({
+            where: { startupId },
+            relations: ['follower'],
+            order: { createdAt: 'DESC' },
+        });
+        return follows.map(f => ({
+            id: f.follower?.id,
+            fullName: f.follower?.fullName,
+            avatarUrl: f.follower?.avatarUrl,
+            role: f.follower?.role,
+            supportedAt: f.createdAt,
+        }));
     }
 
     async followStartup(startupId: string, userId: string) {
@@ -231,7 +248,7 @@ export class StartupsService {
             })
             .catch(() => { /* ignore */ });
 
-        return { message: 'Startup followed successfully' };
+        return { message: 'Startup supported successfully' };
     }
 
     async unfollowStartup(startupId: string, userId: string) {
@@ -240,15 +257,15 @@ export class StartupsService {
         });
 
         if (!follow) {
-            throw new NotFoundException('Not following this startup');
+            throw new NotFoundException('Not supporting this startup');
         }
 
         await this.followRepository.remove(follow);
 
-        // Decrement follower count
+        // Decrement supporter count
         await this.startupRepository.decrement({ id: startupId }, 'followerCount', 1);
 
-        return { message: 'Startup unfollowed successfully' };
+        return { message: 'Support removed successfully' };
     }
 
     async getMyStartup(userId: string) {

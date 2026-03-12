@@ -1,14 +1,14 @@
-import { IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ScheduleMeetingDto {
-    @ApiProperty({ required: false, description: 'Meeting notes or message' })
+    @ApiProperty({ description: 'Meeting date and time (ISO 8601)' })
+    @IsNotEmpty()
+    @IsDateString()
+    scheduledAt: Date;
+
+    @ApiProperty({ required: false, description: 'Optional notes or agenda for the meeting' })
     @IsOptional()
     @IsString()
     notes?: string;
-
-    @ApiProperty({ required: false, description: 'Proposed meeting time' })
-    @IsOptional()
-    @IsDateString()
-    scheduledAt?: Date;
 }

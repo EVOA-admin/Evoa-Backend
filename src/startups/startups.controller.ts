@@ -60,9 +60,16 @@ export class StartupsController {
     }
 
     @Get(':id/follow-status')
-    @ApiOperation({ summary: 'Check if current user follows a startup' })
+    @ApiOperation({ summary: 'Check if current user supports a startup' })
     async getFollowStatus(@Param('id') startupId: string, @CurrentUser() user: User) {
         return this.startupsService.getFollowStatus(startupId, user.id);
+    }
+
+    @Get(':id/supporters')
+    @ApiOperation({ summary: 'Get list of users who support this startup' })
+    @ApiResponse({ status: 200, description: 'Supporters list returned' })
+    async getSupporters(@Param('id') startupId: string) {
+        return this.startupsService.getSupporters(startupId);
     }
 
     @Patch(':id')
@@ -73,22 +80,22 @@ export class StartupsController {
     }
 
     @Post(':id/follow')
-    @ApiOperation({ summary: 'Follow a startup' })
-    @ApiResponse({ status: 201, description: 'Startup followed successfully' })
-    @ApiResponse({ status: 409, description: 'Already following' })
+    @ApiOperation({ summary: 'Support a startup' })
+    @ApiResponse({ status: 201, description: 'Startup supported successfully' })
+    @ApiResponse({ status: 409, description: 'Already supporting' })
     async followStartup(@Param('id') startupId: string, @CurrentUser() user: User) {
         return this.startupsService.followStartup(startupId, user.id);
     }
 
     @Delete(':id/follow')
-    @ApiOperation({ summary: 'Unfollow a startup' })
-    @ApiResponse({ status: 200, description: 'Startup unfollowed successfully' })
+    @ApiOperation({ summary: 'Remove support from a startup' })
+    @ApiResponse({ status: 200, description: 'Support removed successfully' })
     async unfollowStartup(@Param('id') startupId: string, @CurrentUser() user: User) {
         return this.startupsService.unfollowStartup(startupId, user.id);
     }
 
     @Get('following/me')
-    @ApiOperation({ summary: 'Get followed startups' })
+    @ApiOperation({ summary: 'Get startups the current user supports' })
     @ApiResponse({ status: 200, description: 'Followed startups retrieved' })
     async getFollowedStartups(@CurrentUser() user: User) {
         return this.startupsService.getUserFollowedStartups(user.id);

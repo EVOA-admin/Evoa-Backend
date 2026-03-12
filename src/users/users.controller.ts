@@ -15,64 +15,71 @@ export class UsersController {
 
     @Get('me')
     @ApiOperation({ summary: 'Get current user profile' })
-    @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
     async getProfile(@CurrentUser() user: User) {
         return this.usersService.getProfile(user.id);
     }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get any user public profile by ID' })
-    @ApiResponse({ status: 200, description: 'Public profile retrieved successfully' })
     async getPublicProfile(@Param('id') userId: string) {
         return this.usersService.getPublicProfile(userId);
     }
 
     @Patch('me')
     @ApiOperation({ summary: 'Update current user profile' })
-    @ApiResponse({ status: 200, description: 'Profile updated successfully' })
     async updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
         return this.usersService.updateProfile(user.id, dto);
     }
 
     @Post('sync')
-    @ApiOperation({ summary: 'Sync user from Supabase Auth (requires auth)' })
-    @ApiResponse({ status: 201, description: 'User synced successfully' })
+    @ApiOperation({ summary: 'Sync user from Supabase Auth' })
     async syncUser(@CurrentUser() user: User, @Body() dto: SyncUserDto) {
         return this.usersService.syncUser({ ...dto, id: user.supabaseUserId });
     }
 
     @Post('role')
     @ApiOperation({ summary: 'Update user role after onboarding' })
-    @ApiResponse({ status: 200, description: 'Role updated successfully' })
     async updateRole(@CurrentUser() user: User, @Body() dto: UpdateRoleDto) {
         return this.usersService.updateRole(user.id, dto.role);
     }
 
     @Post('complete-registration')
     @ApiOperation({ summary: 'Mark registration form as completed' })
-    @ApiResponse({ status: 200, description: 'Registration marked as complete' })
     async completeRegistration(@CurrentUser() user: User) {
         return this.usersService.completeRegistration(user.id);
     }
 
-    /**
-     * GET /users/:id/connection-status
-     * Returns { connected: boolean, connectionCount: number }
-     */
+    /** GET /users/:id/follow-status — check if current user follows target */
+    @Get(':id/follow-status')
+    @ApiOperation({ summary: 'Check if current user follows another user' })
+    async getFollowStatus(@Param('id') targetUserId: string, @CurrentUser() user: User) {
+        return this.usersService.getFollowStatus(targetUserId, user.id);
+    }
+
+    /** GET /users/:id/connection-status — backward compat alias */
     @Get(':id/connection-status')
-    @ApiOperation({ summary: 'Check if current user is connected with another user' })
-    @ApiResponse({ status: 200, description: 'Connection status returned' })
+    @ApiOperation({ summary: '[Compat] Check follow/connection status with another user' })
     async getConnectionStatus(@Param('id') targetUserId: string, @CurrentUser() user: User) {
         return this.usersService.getConnectionStatus(targetUserId, user.id);
     }
 
-    /**
-     * POST /users/:id/connect
-     * Toggles connection on/off and returns { connected, connectionCount }
-     */
+    /** GET /users/:id/followers — who follows this user */
+    @Get(':id/followers')
+    @ApiOperation({ summary: 'Get followers of a user' })
+    async getFollowers(@Param('id') userId: string) {
+        return this.usersService.getFollowers(userId);
+    }
+
+    /** GET /users/:id/following — who this user follows */
+    @Get(':id/following')
+    @ApiOperation({ summary: 'Get users that this user is following' })
+    async getFollowing(@Param('id') userId: string) {
+        return this.usersService.getFollowing(userId);
+    }
+
+    /** POST /users/:id/connect — Toggle follow/unfollow */
     @Post(':id/connect')
-    @ApiOperation({ summary: 'Toggle connect/disconnect with an investor or incubator' })
-    @ApiResponse({ status: 200, description: 'Connection toggled' })
+    @ApiOperation({ summary: 'Toggle follow/unfollow a user (investor, incubator, or viewer)' })
     async toggleConnect(@Param('id') targetUserId: string, @CurrentUser() user: User) {
         return this.usersService.toggleConnect(targetUserId, user.id);
     }
