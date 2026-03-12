@@ -224,6 +224,7 @@ export class UsersService {
         let user = await this.userRepository.findOne({ where: { supabaseUserId: id } });
 
         if (!user) {
+            // Fallback: look up by email and link the supabaseUserId
             user = await this.userRepository.findOne({ where: { email } });
             if (user) {
                 user.supabaseUserId = id;
@@ -232,6 +233,7 @@ export class UsersService {
         }
 
         if (!user) {
+            // Brand new user — create with defaults
             user = this.userRepository.create({
                 email,
                 supabaseUserId: id,
@@ -242,8 +244,26 @@ export class UsersService {
                 registrationCompleted: false,
             });
             await this.userRepository.save(user);
+        } else {
+            // Existing user: if they have a role but the flags were never explicitly set
+            // (i.e. they predated the two-flag system), backfill the flags in the DB now
+            // so the frontend always gets authoritative boolean values, never null.
+            let needsSave = false;
+            if (user.role && user.roleSelected === null || user.roleSelected === undefined) {
+                (user as any).roleSelected = true;
+                needsSave = true;
+            }
+            if (user.role && user.registrationCompleted === null || user.registrationCompleted === undefined) {
+                (user as any).registrationCompleted = true;
+                needsSave = true;
+            }
+            if (needsSave) {
+                await this.userRepository.save(user);
+            }
         }
 
-        return user;
+        // Re-fetch to ensure we return a clean, fully populated record
+        const freshUser = await this.userRepository.findOne({ where: { id: user.id } });
+        return freshUser;
     }
 }
