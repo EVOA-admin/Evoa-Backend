@@ -67,6 +67,12 @@ export class PostsController {
         return this.postsService.recordWebsiteClick(postId, user.id);
     }
 
+    @Post(':id/view')
+    @ApiOperation({ summary: 'Record a post view — increments viewCount' })
+    async recordPostView(@Param('id') postId: string) {
+        return this.postsService.recordPostView(postId);
+    }
+
     // ── Comments ────────────────────────────────────────────────────────────
 
     @Post(':id/comments')

@@ -458,6 +458,37 @@ export class ReelsService {
     }
 
     /**
+     * Get all reels uploaded by the current user's startup (for profile Posts tab)
+     */
+    async getMyReels(userId: string) {
+        const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
+        if (!startup) return [];
+        return this.reelRepository.find({
+            where: { startupId: startup.id, deletedAt: IsNull() },
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    /**
+     * Delete a reel — only the startup founder can delete their own reel
+     */
+    async deleteReel(reelId: string, userId: string) {
+        const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
+        if (!startup) {
+            const { NotFoundException } = await import('@nestjs/common');
+            throw new NotFoundException('Startup not found for this user');
+        }
+        const reel = await this.reelRepository.findOne({ where: { id: reelId, startupId: startup.id } });
+        if (!reel) {
+            const { NotFoundException } = await import('@nestjs/common');
+            throw new NotFoundException('Reel not found or not owned by this startup');
+        }
+        await this.reelRepository.softDelete({ id: reelId });
+        await this.invalidateAllForYouCaches();
+        return { message: 'Reel deleted' };
+    }
+
+    /**
      * Get reel comments
      */
     async getReelComments(reelId: string) {

@@ -34,6 +34,18 @@ export class ReelsController {
         return this.reelsService.getForYouFeed(user.id, query);
     }
 
+    @Get('me')
+    @ApiOperation({ summary: "Get current startup user's own reels" })
+    async getMyReels(@CurrentUser() user: User) {
+        return this.reelsService.getMyReels(user.id);
+    }
+
+    @Delete(':id')
+    @ApiOperation({ summary: "Delete a reel — only the startup founder can delete their own reel" })
+    async deleteReel(@Param('id') reelId: string, @CurrentUser() user: User) {
+        return this.reelsService.deleteReel(reelId, user.id);
+    }
+
     @Post(':id/like')
     @ApiOperation({ summary: 'Like a reel' })
     @ApiResponse({ status: 201, description: 'Reel liked successfully' })

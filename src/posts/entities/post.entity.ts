@@ -45,6 +45,10 @@ export class Post {
     @Column({ name: 'click_through_count', default: 0 })
     clickThroughCount: number;
 
+    /** Denormalized view count — incremented each time any user views this post */
+    @Column({ name: 'view_count', default: 0 })
+    viewCount: number;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

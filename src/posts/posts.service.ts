@@ -286,6 +286,15 @@ export class PostsService {
         return { message: 'Click recorded', clickThrough: post.clickThroughCount + (existing ? 0 : 1) };
     }
 
+    /**
+     * Record a post view — increments viewCount every time this post is opened.
+     */
+    async recordPostView(postId: string) {
+        await this.postRepo.increment({ id: postId }, 'viewCount', 1);
+        return { message: 'View recorded' };
+    }
+
+
     // ────────────────────────────────────────────────────────── COMMENTS ─────
 
     /**
