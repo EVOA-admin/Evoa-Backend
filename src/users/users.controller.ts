@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
@@ -47,6 +47,13 @@ export class UsersController {
     @ApiOperation({ summary: 'Mark registration form as completed' })
     async completeRegistration(@CurrentUser() user: User) {
         return this.usersService.completeRegistration(user.id);
+    }
+
+    @Delete('me')
+    @ApiOperation({ summary: 'Permanently delete the current user account and all associated data' })
+    @ApiResponse({ status: 200, description: 'Account deleted' })
+    async deleteAccount(@CurrentUser() user: User) {
+        return this.usersService.deleteAccount(user.id);
     }
 
     /** GET /users/:id/follow-status — check if current user follows target */

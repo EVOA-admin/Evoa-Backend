@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import { UserConnection } from './entities/user-connection.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { UpdateProfileDto } from './dto/users.dto';
+import { supabaseAdmin } from '../config/supabase.config';
 
 @Injectable()
 export class UsersService {
@@ -265,5 +266,41 @@ export class UsersService {
         // Re-fetch to ensure we return a clean, fully populated record
         const freshUser = await this.userRepository.findOne({ where: { id: user.id } });
         return freshUser;
+    }
+
+    /**
+     * Permanently delete the current user's account.
+     *
+     * Order of operations:
+     * 1.  Remove the user row from the DB  → all child rows cascade automatically
+     *     (posts, reels, likes, comments, saves, views, follows, notifications,
+     *      chat conversations/messages, connections).
+     * 2.  Delete the Supabase auth identity so the user can never log back in.
+     *
+     * The `supabaseUserId` is saved before deletion so we can still call
+     * `auth.admin.deleteUser` even after the DB row is gone.
+     */
+    async deleteAccount(userId: string): Promise<{ message: string }> {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+
+        const supabaseUserId = user.supabaseUserId;
+
+        // 1. Delete the DB row — cascades to all related tables
+        await this.userRepository.delete({ id: userId });
+
+        // 2. Remove the Supabase auth account (fire-and-forget; don't block on error)
+        if (supabaseUserId) {
+            try {
+                const { error } = await supabaseAdmin.auth.admin.deleteUser(supabaseUserId);
+                if (error) {
+                    console.error('[UsersService] supabase auth.admin.deleteUser error:', error.message);
+                }
+            } catch (err) {
+                console.error('[UsersService] Failed to delete Supabase auth user:', err);
+            }
+        }
+
+        return { message: 'Account deleted successfully' };
     }
 }
