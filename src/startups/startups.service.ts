@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException, Optional, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Optional, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Startup } from './entities/startup.entity';
@@ -25,6 +25,25 @@ export class StartupsService {
     ) { }
 
     async createStartup(userId: string, dto: any) {
+        // ── Backend regex validation for verification numbers ───────────────────────
+        const VERIFICATION_REGEX: Record<string, RegExp> = {
+            CIN: /^[LU]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/,
+            GST: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/,
+            Udyam: /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/,
+        };
+        if (dto.verification?.type && dto.verification?.value) {
+            const type = dto.verification.type as string;
+            const val = (dto.verification.value as string).trim().toUpperCase();
+            const regex = VERIFICATION_REGEX[type];
+            if (regex && !regex.test(val)) {
+                throw new BadRequestException(
+                    `Invalid ${type} number format. Please check the entered number.`
+                );
+            }
+            // Always store uppercase
+            dto.verification.value = val;
+        }
+
         // Check availability of username
         const existing = await this.startupRepository.findOne({
             where: { username: dto.username }
