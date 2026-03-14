@@ -40,7 +40,16 @@ export class ReelsController {
         return this.reelsService.getMyReels(user.id);
     }
 
+    @Get(':id')
+    @ApiOperation({ summary: 'Get a single reel by ID' })
+    @ApiResponse({ status: 200, description: 'Reel retrieved successfully' })
+    @ApiResponse({ status: 404, description: 'Reel not found' })
+    async getReelById(@Param('id') reelId: string, @CurrentUser() user: User) {
+        return this.reelsService.getReelById(reelId, user.id);
+    }
+
     @Delete(':id')
+
     @ApiOperation({ summary: "Delete a reel — only the startup founder can delete their own reel" })
     async deleteReel(@Param('id') reelId: string, @CurrentUser() user: User) {
         return this.reelsService.deleteReel(reelId, user.id);

@@ -75,6 +75,16 @@ export class ReelsService {
         return { message: 'Reel created', reelId: reel.id };
     }
 
+    /** Fetch a single reel by its ID. Used by the explore top-pitch click-through. */
+    async getReelById(reelId: string, _userId: string) {
+        const reel = await this.reelRepository.findOne({
+            where: { id: reelId },
+            relations: ['startup', 'startup.founder'],
+        });
+        if (!reel) throw new NotFoundException('Reel not found');
+        return reel;
+    }
+
     /**
      * Get For You feed - Optimized with Redis caching
      * Target: < 200ms response time
