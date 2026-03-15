@@ -23,6 +23,8 @@ async function bootstrap() {
     // CORS - Support multiple origins
     app.enableCors({
         origin: [
+            'https://evoa.co.in',
+            'https://www.evoa.co.in',
             'https://test.evoa.co.in',
             'http://localhost:5173',
             'http://localhost:3000'
