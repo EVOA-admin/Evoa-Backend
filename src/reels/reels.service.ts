@@ -290,6 +290,7 @@ export class ReelsService {
                             title: 'Someone supported your pitch! 🤝',
                             message: `Your pitch "${reel.title || reel.startup.name}" just received a new support.`,
                             link: `/pitch/${reelId}`,
+                            actorId: userId,
                         }),
                     );
                 }
@@ -355,6 +356,7 @@ export class ReelsService {
                                 title: 'New Comment 💬',
                                 message: `${commenter.fullName || 'Someone'} commented on your pitch: "${dto.content.substring(0, 30)}${dto.content.length > 30 ? '...' : ''}"`,
                                 link: `/pitch/${reelId}`,
+                                actorId: userId,
                             })
                         ).catch(() => { /* ignore */ });
                     }

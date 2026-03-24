@@ -260,7 +260,8 @@ export class StartupsService {
                             type: NotificationType.SYSTEM,
                             title: 'New Support 🤝',
                             message: `${follower.fullName || 'Someone'} just supported your startup!`,
-                            link: `/u/${follower.id}`
+                            link: `/u/${follower.id}`,
+                            actorId: follower.id,
                         })
                     ).catch(() => { /* ignore */ });
                 }

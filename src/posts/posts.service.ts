@@ -249,6 +249,7 @@ export class PostsService {
                             title: 'New Like',
                             message: `${likerName} liked your post`,
                             link: `/post/${postId}`,
+                            actorId: userId,
                         }),
                     );
                 } catch (_) { /* non-critical — never block the like */ }
@@ -325,6 +326,7 @@ export class PostsService {
                         title: 'New Comment',
                         message: `${commenterName} commented: "${preview}"`,
                         link: `/post/${postId}`,
+                        actorId: userId,
                     }),
                 );
             } catch (_) { /* non-critical */ }

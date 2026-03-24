@@ -173,6 +173,7 @@ export class UsersService {
                 title: 'New Follower 👋',
                 message: `${connector.fullName || 'Someone'} started following you!`,
                 link: `/u/${connector.id}`,
+                actorId: connector.id,
             }),
         ).catch(() => { /* ignore */ });
 

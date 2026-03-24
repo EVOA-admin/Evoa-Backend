@@ -37,6 +37,9 @@ export class Notification {
     @Column({ nullable: true })
     link: string;
 
+    @Column({ name: 'actor_id', nullable: true })
+    actorId: string; // the user who triggered this notification (e.g. who followed/supported)
+
     @Column({ name: 'is_read', default: false })
     @Index()
     isRead: boolean;
