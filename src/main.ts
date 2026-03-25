@@ -1,3 +1,5 @@
+process.env.TZ = 'UTC'; // Must be first — forces Node.js + pg driver to use UTC for all timestamps
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
