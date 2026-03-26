@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, ILike, In, Not, IsNull } from 'typeorm';
 import { Startup } from '../startups/entities/startup.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { Reel } from '../reels/entities/reel.entity';
@@ -73,6 +73,7 @@ export class ExploreService {
             .orWhere('startup.username ILIKE :q', { q })
             .orWhere(`EXISTS (SELECT 1 FROM unnest(startup.industries) ind WHERE ind ILIKE :q)`, { q })
             .andWhere('startup.deletedAt IS NULL')
+            .andWhere('founder.supabaseUserId IS NOT NULL')  // exclude ghost/deleted auth users
             .take(20)
             .getMany();
 
@@ -86,6 +87,8 @@ export class ExploreService {
             .orWhere('investor.description ILIKE :q', { q })
             .orWhere('investor.designation ILIKE :q', { q })
             .orWhere(`EXISTS (SELECT 1 FROM unnest(investor.sectors) sec WHERE sec ILIKE :q)`, { q })
+            .andWhere('user.supabaseUserId IS NOT NULL')  // exclude ghost/deleted auth users
+            .andWhere('user.deletedAt IS NULL')
             .take(20)
             .getMany();
 
@@ -104,6 +107,8 @@ export class ExploreService {
             .orWhere('incubator.organizationType ILIKE :q', { q })
             .orWhere(`EXISTS (SELECT 1 FROM unnest(incubator.sectors) sec WHERE sec ILIKE :q)`, { q })
             .orWhere(`EXISTS (SELECT 1 FROM unnest(incubator.programTypes) pt WHERE pt ILIKE :q)`, { q })
+            .andWhere('user.supabaseUserId IS NOT NULL')  // exclude ghost/deleted auth users
+            .andWhere('user.deletedAt IS NULL')
             .take(20)
             .getMany();
 
@@ -125,6 +130,7 @@ export class ExploreService {
             .orWhere('user.company ILIKE :q', { q })
             .orWhere('user.bio ILIKE :q', { q })
             .andWhere('user.deletedAt IS NULL')
+            .andWhere('user.supabaseUserId IS NOT NULL')  // exclude ghost/deleted auth users
             .take(20)
             .getMany();
 
@@ -227,6 +233,8 @@ export class ExploreService {
             .leftJoinAndSelect('startup.reels', 'reels')
             .where('startup.createdAt >= :date', { date: oneWeekAgo })
             .andWhere('startup.deletedAt IS NULL')
+            .andWhere('founder.supabaseUserId IS NOT NULL')  // exclude ghost startups (deleted auth user)
+            .andWhere('founder.deletedAt IS NULL')
             .orderBy('startup.followerCount', 'DESC')
             .take(10)
             .getMany();
@@ -241,7 +249,11 @@ export class ExploreService {
         if (cached) return cached;
 
         const investors = await this.userRepository.find({
-            where: { role: In([UserRole.INVESTOR, UserRole.INCUBATOR]) },
+            where: {
+                role: In([UserRole.INVESTOR, UserRole.INCUBATOR]),
+                supabaseUserId: Not(IsNull()),  // exclude ghost/deleted auth users
+                deletedAt: IsNull(),
+            },
             take: 10,
         });
 
