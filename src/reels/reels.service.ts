@@ -512,35 +512,50 @@ export class ReelsService {
     }
 
     /**
-     * Invalidate feed cache for user using Redis SCAN
+     * Invalidate feed cache for user.
+     *
+     * Two-phase approach for reliability:
+     *  1. Direct DEL on the most common first-page key (fast, always works).
+     *  2. SCAN-based sweep for any paginated variants.
+     *
+     * Uses redis v4 client API — scan(cursor, { MATCH, COUNT }) returning { cursor, keys }.
      */
     private async invalidateFeedCache(userId: string) {
         try {
             if (!this.redisClient) return;
 
+            // ── Phase 1: Fast-path — delete the first-page key directly ─────────
+            // This covers the overwhelmingly common case (no cursor / limit=20).
+            const firstPageKeys = [
+                `feed:for_you:${userId}:start:20`,
+                `feed:for_you:${userId}:start:10`,
+                `feed:following:${userId}:start:20`,
+                `feed:following:${userId}:start:10`,
+            ];
+            await this.redisClient.del(firstPageKeys).catch(() => { /* ignore */ });
+
+            // ── Phase 2: SCAN sweep for paginated cache keys ──────────────────────
+            // redis v4 API: scan(cursor, { MATCH, COUNT }) → { cursor, keys }
             const patterns = [
                 `feed:for_you:${userId}:*`,
                 `feed:following:${userId}:*`,
             ];
 
             for (const pattern of patterns) {
-                let cursor = '0';
+                let cursor = 0;
                 do {
-                    const [nextCursor, keys] = await this.redisClient.scan(
-                        cursor,
-                        'MATCH',
-                        pattern,
-                        'COUNT',
-                        100,
-                    );
-                    cursor = nextCursor;
-                    if (keys.length > 0) {
-                        await this.redisClient.del(...keys);
+                    const result = await this.redisClient.scan(cursor, {
+                        MATCH: pattern,
+                        COUNT: 100,
+                    });
+                    cursor = result.cursor;
+                    if (result.keys.length > 0) {
+                        await this.redisClient.del(result.keys);
                     }
-                } while (cursor !== '0');
+                } while (cursor !== 0);
             }
         } catch (err) {
-            console.error('Cache invalidation error:', err);
+            console.error('[ReelsService] Cache invalidation error:', err);
         }
     }
 
