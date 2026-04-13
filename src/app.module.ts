@@ -18,6 +18,7 @@ import { IncubatorsModule } from './incubators/incubators.module';
 import { PostsModule } from './posts/posts.module';
 import { StoriesModule } from './stories/stories.module';
 import { ChatModule } from './chat/chat.module';
+import { AmbassadorModule } from './ambassador/ambassador.module';
 
 @Module({
     imports: [
@@ -50,6 +51,7 @@ import { ChatModule } from './chat/chat.module';
         PostsModule,
         StoriesModule,
         ChatModule,
+        AmbassadorModule,
     ],
 })
 export class AppModule { }

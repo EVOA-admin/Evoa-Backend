@@ -12,6 +12,7 @@ import { InvestorAiLog } from '../../ai/entities/investor-ai-log.entity';
 import { Investor } from '../../investors/entities/investor.entity';
 import { Incubator } from '../../incubators/entities/incubator.entity';
 import { UserConnection } from './user-connection.entity';
+import { Referral } from '../../ambassador/entities/referral.entity';
 
 export enum UserRole {
     VIEWER = 'viewer',
@@ -73,6 +74,9 @@ export class User {
     @Column({ name: 'connection_count', default: 0 })
     connectionCount: number;
 
+    @Column({ name: 'referral_code', unique: true, nullable: true, length: 16 })
+    referralCode: string;
+
     @Column({ name: 'supabase_user_id', unique: true, nullable: true })
     @Index()
     supabaseUserId: string;
@@ -131,4 +135,7 @@ export class User {
 
     @OneToMany(() => UserConnection, (conn) => conn.target)
     connectionsReceived: UserConnection[];
+
+    @OneToMany(() => Referral, (ref) => ref.referrer)
+    referralsMade: Referral[];
 }
