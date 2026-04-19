@@ -488,25 +488,24 @@ export class ReelsService {
             throw new NotFoundException('Reel not found');
         }
 
-        // Check if already viewed (idempotent - only count unique views)
+        // Keep a unique-view record for analytics, but always increment the
+        // denormalized counter so the UI reflects total view opens from now on.
         const existingView = await this.reelViewRepository.findOne({
             where: { reelId, userId },
         });
 
-        if (existingView) {
-            // Already viewed, don't increment counter
-            return { message: 'View already tracked' };
+        if (!existingView) {
+            const view = this.reelViewRepository.create({
+                reelId,
+                userId,
+            });
+
+            await this.reelViewRepository.save(view);
         }
-
-        const view = this.reelViewRepository.create({
-            reelId,
-            userId,
-        });
-
-        await this.reelViewRepository.save(view);
 
         // Increment view counter
         await this.reelRepository.increment({ id: reelId }, 'viewCount', 1);
+        await this.invalidateTopPitchesCache();
 
         return { message: 'View tracked successfully' };
     }
@@ -624,6 +623,14 @@ export class ReelsService {
             } while (cursor !== '0');
         } catch (err) {
             console.error('[ReelsService] Global feed cache flush error:', err);
+        }
+    }
+
+    private async invalidateTopPitchesCache() {
+        try {
+            await this.redisService.del('top:pitches');
+        } catch (err) {
+            console.error('[ReelsService] Top pitches cache flush error:', err);
         }
     }
 }
