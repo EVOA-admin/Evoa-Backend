@@ -25,23 +25,54 @@ export class StartupsService {
     ) { }
 
     async createStartup(userId: string, dto: any) {
-        // ── Backend regex validation for verification numbers ───────────────────────
-        const VERIFICATION_REGEX: Record<string, RegExp> = {
-            CIN: /^[LU]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/,
-            GST: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/,
-            Udyam: /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/,
-        };
-        if (dto.verification?.type && dto.verification?.value) {
-            const type = dto.verification.type as string;
-            const val = (dto.verification.value as string).trim().toUpperCase();
-            const regex = VERIFICATION_REGEX[type];
-            if (regex && !regex.test(val)) {
-                throw new BadRequestException(
-                    `Invalid ${type} number format. Please check the entered number.`
-                );
+        const verification = dto.verification || {};
+        const normalizedCountryCode = typeof verification.countryCode === 'string'
+            ? verification.countryCode.trim().toUpperCase()
+            : '';
+        const normalizedEntityType = typeof verification.entityType === 'string'
+            ? verification.entityType.trim()
+            : '';
+        const normalizedPrimaryValue = typeof verification.value === 'string'
+            ? verification.value.trim()
+            : '';
+        const normalizedSecondaryValue = typeof verification.secondaryValue === 'string'
+            ? verification.secondaryValue.trim()
+            : '';
+        const normalizedDocumentUrl = typeof verification.documentUrl === 'string'
+            ? verification.documentUrl.trim()
+            : '';
+        const isRegisteredEntity = !!normalizedEntityType && normalizedEntityType !== 'Not Registered Yet';
+
+        if (dto.industries && (!Array.isArray(dto.industries) || dto.industries.length === 0)) {
+            throw new BadRequestException('Please select at least one industry.');
+        }
+        if (dto.stage !== undefined && !dto.stage) {
+            throw new BadRequestException('Please select the startup stage.');
+        }
+
+        if (normalizedCountryCode) {
+            if (!normalizedEntityType) {
+                throw new BadRequestException('Legal entity type is required.');
             }
-            // Always store uppercase
-            dto.verification.value = val;
+
+            if (isRegisteredEntity && !normalizedDocumentUrl) {
+                throw new BadRequestException('A registration document is required for registered entities.');
+            }
+
+            if (isRegisteredEntity && !normalizedPrimaryValue) {
+                throw new BadRequestException('A primary registration number is required for registered entities.');
+            }
+
+            dto.verification = {
+                ...verification,
+                countryCode: normalizedCountryCode,
+                entityType: normalizedEntityType,
+                value: normalizedPrimaryValue,
+                secondaryValue: normalizedSecondaryValue || null,
+                documentUrl: normalizedDocumentUrl || null,
+                registrationStatus: verification.registrationStatus
+                    || (isRegisteredEntity ? 'registered' : 'unregistered'),
+            };
         }
 
         // Check availability of username

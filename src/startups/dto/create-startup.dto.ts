@@ -21,6 +21,10 @@ class FounderDto {
     @IsString()
     @IsOptional()
     photoUrl?: string;
+
+    @IsString()
+    @IsOptional()
+    linkedin?: string;
 }
 
 class LocationDto {
@@ -40,6 +44,26 @@ class LocationDto {
 class VerificationDto {
     @IsString()
     @IsOptional()
+    countryCode?: string;
+
+    @IsString()
+    @IsOptional()
+    countryName?: string;
+
+    @IsString()
+    @IsOptional()
+    registry?: string;
+
+    @IsString()
+    @IsOptional()
+    idLabel?: string;
+
+    @IsString()
+    @IsOptional()
+    secondaryIdLabel?: string;
+
+    @IsString()
+    @IsOptional()
     type?: string;
 
     @IsString()
@@ -53,6 +77,14 @@ class VerificationDto {
     @IsString()
     @IsOptional()
     entityType?: string;
+
+    @IsString()
+    @IsOptional()
+    secondaryValue?: string;
+
+    @IsString()
+    @IsOptional()
+    registrationStatus?: string;
 }
 
 // Use plain string validation — @IsUrl() rejects user-typed partial URLs
@@ -80,6 +112,10 @@ class SocialLinksDto {
     @IsString()
     @IsOptional()
     productDemo?: string;
+
+    @IsString()
+    @IsOptional()
+    brochure?: string;
 }
 
 class TeamMemberDto {
@@ -175,6 +211,10 @@ export class CreateStartupDto {
     @IsNumber()
     @IsOptional()
     preMoneyValuation?: number;
+
+    @IsString()
+    @IsOptional()
+    brochureUrl?: string;
 
     @ValidateNested()
     @Type(() => SocialLinksDto)

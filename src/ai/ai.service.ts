@@ -131,6 +131,8 @@ FINANCIALS & DEAL:
 DOCUMENTS:
 - Pitch Deck: ${s.pitchDeckUrl ? 'Available (uploaded by founder)' : 'Not provided'}
 - Entity/Verification Type: ${s.verification?.entityType || 'Not provided'}
+- Incorporation Country: ${s.verification?.countryName || 'Not provided'}
+- Registry: ${s.verification?.registry || 'Not provided'}
 
 SOCIAL PRESENCE:
 ${socialText}

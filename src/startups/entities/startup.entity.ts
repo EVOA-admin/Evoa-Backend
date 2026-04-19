@@ -63,10 +63,22 @@ export class Startup {
     location: { city: string; state: string; country: string };
 
     @Column({ type: 'jsonb', nullable: true })
-    founders: { name: string; email: string; mobile: string; role: string; photoUrl?: string }[];
+    founders: { name: string; email: string; mobile: string; role: string; linkedin?: string; photoUrl?: string }[];
 
     @Column({ type: 'jsonb', nullable: true })
-    verification: { type: string; value: string; documentUrl?: string; entityType: string };
+    verification: {
+        countryCode?: string;
+        countryName?: string;
+        registry?: string;
+        idLabel?: string;
+        secondaryIdLabel?: string;
+        type?: string;
+        value?: string;
+        secondaryValue?: string;
+        documentUrl?: string;
+        entityType?: string;
+        registrationStatus?: string;
+    };
 
     @Column({ name: 'pitch_video_url', nullable: true })
     pitchVideoUrl: string;
@@ -75,7 +87,7 @@ export class Startup {
     pitchDeckUrl: string;
 
     @Column({ type: 'jsonb', nullable: true })
-    socialLinks: { linkedin?: string; instagram?: string; youtube?: string; website?: string; playStore?: string; productDemo?: string };
+    socialLinks: { linkedin?: string; instagram?: string; youtube?: string; website?: string; playStore?: string; productDemo?: string; brochure?: string };
 
     @Column({ type: 'jsonb', nullable: true })
     teamMembers: { name: string; role: string; linkedin?: string; image?: string }[];
