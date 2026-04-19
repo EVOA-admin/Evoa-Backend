@@ -5,7 +5,7 @@ import {
     BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Raw, Repository } from 'typeorm';
 import { Referral, ReferralStatus } from './entities/referral.entity';
 import { User } from '../users/entities/user.entity';
 
@@ -17,6 +17,10 @@ export class AmbassadorService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
     ) {}
+
+    private normalizeCode(code: string): string {
+        return typeof code === 'string' ? code.trim().toUpperCase() : '';
+    }
 
     // ─── Code Generation ────────────────────────────────────────────────────
 
@@ -97,10 +101,13 @@ export class AmbassadorService {
      * Safe to expose publicly (used on the signup page before auth).
      */
     async validateCode(code: string): Promise<{ valid: boolean; referrerId?: string }> {
-        if (!code || code.length !== 16) return { valid: false };
+        const normalizedCode = this.normalizeCode(code);
+        if (!normalizedCode || normalizedCode.length !== 16) return { valid: false };
 
         const referrer = await this.userRepo.findOne({
-            where: { referralCode: code.toUpperCase() },
+            where: {
+                referralCode: Raw((alias) => `UPPER(TRIM(${alias})) = :code`, { code: normalizedCode }),
+            },
             select: ['id'],
         });
 
@@ -115,8 +122,10 @@ export class AmbassadorService {
      * Called right after the new user's first login resolves.
      */
     async applyReferral(referralCode: string, newUserId: string): Promise<{ success: boolean; message: string }> {
+        const normalizedCode = this.normalizeCode(referralCode);
+
         // Validate code
-        const { valid, referrerId } = await this.validateCode(referralCode);
+        const { valid, referrerId } = await this.validateCode(normalizedCode);
         if (!valid) throw new BadRequestException('Invalid referral code');
 
         // Prevent self-referral
