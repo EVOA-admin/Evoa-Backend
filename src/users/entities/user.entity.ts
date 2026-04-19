@@ -22,6 +22,20 @@ export enum UserRole {
     ADMIN = 'admin',
 }
 
+export enum UserPlanType {
+    FREE = 'free',
+    STARTUP = 'startup',
+    INVESTOR = 'investor',
+}
+
+export enum SubscriptionStatus {
+    FREE = 'free',
+    PENDING = 'pending',
+    ACTIVE = 'active',
+    EXPIRED = 'expired',
+    CANCELLED = 'cancelled',
+}
+
 @Entity('users')
 export class User {
     @PrimaryGeneratedColumn('uuid')
@@ -80,6 +94,28 @@ export class User {
     @Column({ name: 'supabase_user_id', unique: true, nullable: true })
     @Index()
     supabaseUserId: string;
+
+    @Column({
+        name: 'plan_type',
+        type: 'enum',
+        enum: UserPlanType,
+        default: UserPlanType.FREE,
+    })
+    planType: UserPlanType;
+
+    @Column({
+        name: 'subscription_status',
+        type: 'enum',
+        enum: SubscriptionStatus,
+        default: SubscriptionStatus.FREE,
+    })
+    subscriptionStatus: SubscriptionStatus;
+
+    @Column({ name: 'subscription_start_date', type: 'timestamptz', nullable: true })
+    subscriptionStartDate: Date | null;
+
+    @Column({ name: 'subscription_end_date', type: 'timestamptz', nullable: true })
+    subscriptionEndDate: Date | null;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

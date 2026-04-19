@@ -17,6 +17,10 @@ CREATE TABLE users (
   location VARCHAR(255),
   website VARCHAR(255),
   supabase_user_id UUID UNIQUE,
+  plan_type VARCHAR(50) DEFAULT 'free',
+  subscription_status VARCHAR(50) DEFAULT 'free',
+  subscription_start_date TIMESTAMP,
+  subscription_end_date TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   deleted_at TIMESTAMP
@@ -25,6 +29,8 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_supabase_id ON users(supabase_user_id);
+CREATE INDEX idx_users_plan_type ON users(plan_type);
+CREATE INDEX idx_users_subscription_status ON users(subscription_status);
 
 -- Startups table
 CREATE TABLE startups (
@@ -162,6 +168,22 @@ CREATE INDEX idx_notifications_user ON notifications(user_id);
 CREATE INDEX idx_notifications_type ON notifications(type);
 CREATE INDEX idx_notifications_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+
+-- Pricing Orders table
+CREATE TABLE pricing_orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_type VARCHAR(50) NOT NULL,
+  payment_id VARCHAR(255) UNIQUE NOT NULL,
+  amount_paise INTEGER NOT NULL,
+  currency VARCHAR(3) DEFAULT 'INR',
+  subscription_status VARCHAR(50) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_pricing_orders_user ON pricing_orders(user_id);
+CREATE INDEX idx_pricing_orders_payment ON pricing_orders(payment_id);
 
 -- Investor AI Logs table
 CREATE TABLE investor_ai_logs (
