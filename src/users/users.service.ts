@@ -6,6 +6,7 @@ import { UserConnection } from './entities/user-connection.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
 import { UpdateProfileDto } from './dto/users.dto';
 import { supabaseAdmin } from '../config/supabase.config';
+import { Investor } from '../investors/entities/investor.entity';
 
 @Injectable()
 export class UsersService {
@@ -16,6 +17,8 @@ export class UsersService {
         private readonly notificationRepository: Repository<Notification>,
         @InjectRepository(UserConnection)
         private readonly connectionRepository: Repository<UserConnection>,
+        @InjectRepository(Investor)
+        private readonly investorRepository: Repository<Investor>,
     ) { }
 
     async getProfile(userId: string) {
@@ -258,6 +261,23 @@ export class UsersService {
             if (user.role && user.registrationCompleted === null || user.registrationCompleted === undefined) {
                 (user as any).registrationCompleted = true;
                 needsSave = true;
+            }
+
+            if (
+                user.role === UserRole.INVESTOR &&
+                !user.isPremium &&
+                !user.isPaymentPending &&
+                !user.isLegacyUser
+            ) {
+                const existingInvestorProfile = await this.investorRepository.findOne({
+                    where: { userId: user.id },
+                    select: ['id'],
+                });
+
+                if (existingInvestorProfile) {
+                    user.isLegacyUser = true;
+                    needsSave = true;
+                }
             }
             if (needsSave) {
                 await this.userRepository.save(user);

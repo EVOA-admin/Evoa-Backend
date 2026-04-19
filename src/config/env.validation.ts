@@ -29,6 +29,14 @@ class EnvironmentVariables {
 
     @IsOptional()
     @IsString()
+    DATABASE_USE_URL: string = '';
+
+    @IsOptional()
+    @IsString()
+    DATABASE_SSL: string = '';
+
+    @IsOptional()
+    @IsString()
     SUPABASE_URL: string = '';
 
     @IsOptional()
@@ -46,6 +54,18 @@ class EnvironmentVariables {
     @IsOptional()
     @IsString()
     FRONTEND_URL: string = 'http://localhost:5173';
+
+    @IsOptional()
+    @IsString()
+    RAZORPAY_KEY_ID: string = '';
+
+    @IsOptional()
+    @IsString()
+    RAZORPAY_KEY_SECRET: string = '';
+
+    @IsOptional()
+    @IsString()
+    REDIS_USE_URL: string = '';
 }
 
 export function validate(config: Record<string, unknown>) {

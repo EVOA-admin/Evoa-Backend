@@ -6,6 +6,7 @@ import { Follow } from './entities/follow.entity';
 import { Reel } from '../reels/entities/reel.entity';
 import { User } from '../users/entities/user.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
+import { assertInvestorPaymentAccess } from '../users/user-access.util';
 
 @Injectable()
 export class StartupsService {
@@ -220,7 +221,10 @@ export class StartupsService {
         return { message: 'Pitch reel published', reelId: saved.id };
     }
 
-    async getStartup(startupId: string) {
+    async getStartup(startupId: string, viewerId: string) {
+        const viewer = await this.userRepository.findOne({ where: { id: viewerId } });
+        assertInvestorPaymentAccess(viewer);
+
         const startup = await this.startupRepository.findOne({
             where: { id: startupId },
             relations: ['founder', 'reels'],

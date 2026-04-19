@@ -13,7 +13,6 @@ import { Startup } from '../startups/entities/startup.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
-import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -23,7 +22,7 @@ import { AuthModule } from '../auth/auth.module';
         AuthModule,
     ],
     controllers: [ReelsController],
-    providers: [ReelsService, redisClientFactory, RedisService],
+    providers: [ReelsService],
     exports: [ReelsService],
 })
 export class ReelsModule { }

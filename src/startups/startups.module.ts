@@ -10,7 +10,6 @@ import { User } from '../users/entities/user.entity';
 import { UsersModule } from '../users/users.module';
 
 import { AuthModule } from '../auth/auth.module';
-import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AiModule } from '../ai/ai.module';
 
 @Module({
@@ -21,7 +20,7 @@ import { AiModule } from '../ai/ai.module';
         AiModule,
     ],
     controllers: [StartupsController],
-    providers: [StartupsService, redisClientFactory, RedisService],
+    providers: [StartupsService],
     exports: [StartupsService],
 })
 export class StartupsModule { }

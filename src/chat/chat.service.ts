@@ -7,6 +7,7 @@ import { MessageRequest, MessageRequestStatus } from './entities/message-request
 import { User, UserRole } from '../users/entities/user.entity';
 import { UserConnection } from '../users/entities/user-connection.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
+import { assertInvestorPaymentAccess } from '../users/user-access.util';
 
 @Injectable()
 export class ChatService {
@@ -85,6 +86,7 @@ export class ChatService {
         ]);
 
         if (!sender || !receiver) throw new NotFoundException('User not found');
+        assertInvestorPaymentAccess(sender);
 
         const canMessage = await this.canMessageDirectly(sender, receiver);
         if (canMessage) {
@@ -132,6 +134,7 @@ export class ChatService {
             this.userRepo.findOne({ where: { id: receiverId } }),
         ]);
         if (!sender || !receiver) throw new NotFoundException('User not found');
+        assertInvestorPaymentAccess(sender);
 
         let allowed = await this.canMessageDirectly(sender, receiver);
         const conv = await this.findOrCreateConversation(senderId, receiverId);
@@ -225,6 +228,7 @@ export class ChatService {
             this.userRepo.findOne({ where: { id: toUserId } }),
         ]);
         if (!from || !to) throw new NotFoundException('User not found');
+        assertInvestorPaymentAccess(from);
 
         const canDirect = await this.canMessageDirectly(from, to);
         if (canDirect) {

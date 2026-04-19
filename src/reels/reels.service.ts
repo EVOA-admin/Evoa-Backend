@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Inject, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThan, IsNull } from 'typeorm';
 import { Reel } from './entities/reel.entity';
@@ -13,6 +13,7 @@ import { Notification, NotificationType } from '../notifications/entities/notifi
 import { User } from '../users/entities/user.entity';
 import { RedisService } from '../config/redis.config';
 import { FeedQueryDto, CreateCommentDto, ShareReelDto, CreateReelDto } from './dto/reels.dto';
+import { assertInvestorPaymentAccess, hasActivePremiumAccess } from '../users/user-access.util';
 
 @Injectable()
 export class ReelsService {
@@ -43,14 +44,39 @@ export class ReelsService {
 
     private redisService = new RedisService(this.redisClient);
 
+    private async getFreshUser(userId: string) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+
+        if (user.subscriptionEndDate && new Date(user.subscriptionEndDate).getTime() <= Date.now() && user.isPremium) {
+            user.isPremium = false;
+            user.subscriptionStatus = 'expired' as any;
+            await this.userRepository.update(
+                { id: user.id },
+                {
+                    isPremium: false,
+                    subscriptionStatus: 'expired' as any,
+                },
+            );
+        }
+
+        return user;
+    }
+
     /**
      * Create a new reel for the current user's startup.
      * Each upload always creates a fresh reel — users can have unlimited reels.
      * The feed is ordered by createdAt DESC so newest always appears first.
      */
     async createOrUpdateReel(userId: string, dto: CreateReelDto) {
+        const user = await this.getFreshUser(userId);
         const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
         if (!startup) throw new NotFoundException('Startup not found for this user');
+
+        const pitchCount = await this.reelRepository.count({ where: { startupId: startup.id } });
+        if (pitchCount >= 1 && !hasActivePremiumAccess(user)) {
+            throw new ForbiddenException('Upgrade required');
+        }
 
         const hashtags = [...new Set([
             ...(dto.hashtags || []).map(t => t.replace(/^#/, '').toLowerCase()),
@@ -75,8 +101,21 @@ export class ReelsService {
         return { message: 'Reel created', reelId: reel.id };
     }
 
+    async getPitchCount(userId: string) {
+        const user = await this.getFreshUser(userId);
+        const startup = await this.startupRepository.findOne({ where: { founderId: userId } });
+        if (!startup) {
+            return { pitchCount: 0, isPremium: hasActivePremiumAccess(user) };
+        }
+
+        const pitchCount = await this.reelRepository.count({ where: { startupId: startup.id } });
+        return { pitchCount, isPremium: hasActivePremiumAccess(user) };
+    }
+
     /** Fetch a single reel by its ID. Used by the explore top-pitch click-through. */
     async getReelById(reelId: string, _userId: string) {
+        const viewer = await this.getFreshUser(_userId);
+        assertInvestorPaymentAccess(viewer);
         const reel = await this.reelRepository.findOne({
             where: { id: reelId },
             relations: ['startup', 'startup.founder'],
@@ -394,6 +433,9 @@ export class ReelsService {
      * Save/bookmark a reel
      */
     async saveReel(reelId: string, userId: string) {
+        const user = await this.getFreshUser(userId);
+        assertInvestorPaymentAccess(user);
+
         // Check if reel exists
         const reel = await this.reelRepository.findOne({ where: { id: reelId } });
         if (!reel) {

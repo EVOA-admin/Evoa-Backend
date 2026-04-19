@@ -21,6 +21,9 @@ CREATE TABLE users (
   subscription_status VARCHAR(50) DEFAULT 'free',
   subscription_start_date TIMESTAMP,
   subscription_end_date TIMESTAMP,
+  is_premium BOOLEAN DEFAULT FALSE,
+  is_payment_pending BOOLEAN DEFAULT FALSE,
+  is_legacy_user BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   deleted_at TIMESTAMP
@@ -174,16 +177,20 @@ CREATE TABLE pricing_orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   plan_type VARCHAR(50) NOT NULL,
-  payment_id VARCHAR(255) UNIQUE NOT NULL,
+  razorpay_order_id VARCHAR(255) UNIQUE NOT NULL,
+  payment_id VARCHAR(255) UNIQUE,
   amount_paise INTEGER NOT NULL,
   currency VARCHAR(3) DEFAULT 'INR',
   subscription_status VARCHAR(50) DEFAULT 'pending',
+  provider_signature VARCHAR(255),
+  verified_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX idx_pricing_orders_user ON pricing_orders(user_id);
 CREATE INDEX idx_pricing_orders_payment ON pricing_orders(payment_id);
+CREATE INDEX idx_pricing_orders_razorpay_order ON pricing_orders(razorpay_order_id);
 
 -- Investor AI Logs table
 CREATE TABLE investor_ai_logs (

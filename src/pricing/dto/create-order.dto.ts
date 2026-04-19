@@ -2,6 +2,6 @@ import { IsIn, IsString } from 'class-validator';
 
 export class CreateOrderDto {
     @IsString()
-    @IsIn(['startup', 'investor'])
-    planType: 'startup' | 'investor';
+    @IsIn(['startup_pro', 'investor_premium'])
+    planType: 'startup_pro' | 'investor_premium';
 }

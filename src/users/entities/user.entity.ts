@@ -24,8 +24,8 @@ export enum UserRole {
 
 export enum UserPlanType {
     FREE = 'free',
-    STARTUP = 'startup',
-    INVESTOR = 'investor',
+    STARTUP_PRO = 'startup_pro',
+    INVESTOR_PREMIUM = 'investor_premium',
 }
 
 export enum SubscriptionStatus {
@@ -116,6 +116,15 @@ export class User {
 
     @Column({ name: 'subscription_end_date', type: 'timestamptz', nullable: true })
     subscriptionEndDate: Date | null;
+
+    @Column({ name: 'is_premium', default: false })
+    isPremium: boolean;
+
+    @Column({ name: 'is_payment_pending', default: false })
+    isPaymentPending: boolean;
+
+    @Column({ name: 'is_legacy_user', default: false })
+    isLegacyUser: boolean;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

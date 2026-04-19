@@ -5,7 +5,6 @@ import { AiController } from './ai.controller';
 import { InvestorAiLog } from './entities/investor-ai-log.entity';
 import { Startup } from '../startups/entities/startup.entity';
 import { Reel } from '../reels/entities/reel.entity';
-import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AuthGuardModule } from '../auth/auth-guard.module';
 
 @Module({
@@ -14,7 +13,7 @@ import { AuthGuardModule } from '../auth/auth-guard.module';
         AuthGuardModule,
     ],
     controllers: [AiController],
-    providers: [AiService, redisClientFactory, RedisService],
+    providers: [AiService],
     exports: [AiService],
 })
 export class AiModule { }

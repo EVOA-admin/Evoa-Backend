@@ -8,7 +8,6 @@ import { Hashtag } from './entities/hashtag.entity';
 import { Investor } from '../investors/entities/investor.entity';
 import { Incubator } from '../incubators/entities/incubator.entity';
 import { UsersModule } from '../users/users.module';
-import { redisClientFactory, RedisService } from '../config/redis.config';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -18,6 +17,6 @@ import { AuthModule } from '../auth/auth.module';
         AuthModule,
     ],
     controllers: [ExploreController],
-    providers: [ExploreService, redisClientFactory, RedisService],
+    providers: [ExploreService],
 })
 export class ExploreModule { }

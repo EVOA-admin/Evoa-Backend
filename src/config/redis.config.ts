@@ -54,34 +54,71 @@
 
 import { createClient } from 'redis';
 
+let redisClientPromise: Promise<any> | null = null;
+let hasLoggedRedisFailure = false;
+
 export const redisClientFactory = {
     provide: 'REDIS_CLIENT',
     useFactory: async () => {
-        // 🚫 Redis not configured → disable gracefully
-        if (!process.env.REDIS_URL) {
-            console.warn('⚠️ Redis is disabled (no REDIS_URL)');
-            return null;
+        if (redisClientPromise) {
+            return redisClientPromise;
         }
 
-        const client = createClient({
-            url: process.env.REDIS_URL,
-            socket: { tls: true },
-        });
+        const useRedisUrl = process.env.REDIS_USE_URL === 'true'
+            || (process.env.NODE_ENV === 'production' && !!process.env.REDIS_URL)
+            || (!process.env.REDIS_HOST && !!process.env.REDIS_URL);
+        const redisUrl = process.env.REDIS_URL || '';
+        const shouldUseTls = redisUrl.startsWith('rediss://') || useRedisUrl;
 
-        client.on('error', (err) =>
-            console.error('Redis Client Error', err),
-        );
-        client.on('connect', () =>
-            console.log('✅ Redis Client Connected'),
-        );
+        const client = useRedisUrl
+            ? createClient({
+                url: redisUrl,
+                socket: {
+                    tls: shouldUseTls,
+                    reconnectStrategy: false,
+                },
+            })
+            : createClient({
+                socket: {
+                    host: process.env.REDIS_HOST || 'localhost',
+                    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+                    reconnectStrategy: false,
+                },
+                password: process.env.REDIS_PASSWORD || undefined,
+            });
 
-        try {
-            await client.connect();
-        } catch (err) {
-            console.warn('⚠️ Redis connection failed, disabling gracefully:', err);
-            return null;
-        }
-        return client;
+        redisClientPromise = (async () => {
+            client.on('error', (err) => {
+                if (!hasLoggedRedisFailure) {
+                    hasLoggedRedisFailure = true;
+                    console.warn('⚠️ Redis is unavailable. Continuing without cache.', err);
+                }
+            });
+
+            client.on('connect', () => {
+                hasLoggedRedisFailure = false;
+                console.log('✅ Redis Client Connected');
+            });
+
+            try {
+                await client.connect();
+                return client;
+            } catch (err) {
+                if (!hasLoggedRedisFailure) {
+                    hasLoggedRedisFailure = true;
+                    console.warn('⚠️ Redis connection failed, disabling gracefully:', err);
+                }
+                try {
+                    client.removeAllListeners();
+                    await client.quit().catch(() => undefined);
+                } catch {
+                    // Ignore cleanup issues when the client never connected.
+                }
+                return null;
+            }
+        })();
+
+        return redisClientPromise;
     },
 };
 

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Investor } from './entities/investor.entity';
-import { User } from '../users/entities/user.entity';
+import { SubscriptionStatus, User, UserPlanType } from '../users/entities/user.entity';
 import { CreateInvestorDto } from './dto/create-investor.dto';
 
 @Injectable()
@@ -45,6 +45,11 @@ export class InvestorsService {
         const userUpdate: Partial<User> = {};
         if (dto.name) userUpdate.fullName = dto.name;
         if (dto.logoUrl) userUpdate.avatarUrl = dto.logoUrl;
+        userUpdate.planType = UserPlanType.INVESTOR_PREMIUM;
+        userUpdate.subscriptionStatus = SubscriptionStatus.PENDING;
+        userUpdate.isPremium = false;
+        userUpdate.isPaymentPending = true;
+        userUpdate.isLegacyUser = false;
         if (Object.keys(userUpdate).length > 0) {
             await this.userRepository.update({ id: userId }, userUpdate);
         }

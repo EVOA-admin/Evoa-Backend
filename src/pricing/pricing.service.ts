@@ -1,15 +1,63 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomUUID } from 'crypto';
+import { createHmac } from 'crypto';
 import { PricingOrder } from './entities/pricing-order.entity';
 import { User, UserPlanType, UserRole, SubscriptionStatus } from '../users/entities/user.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { hasActivePremiumAccess } from '../users/user-access.util';
 
 type PricingPayload = {
-    startups: any;
-    investors: any;
-    ambassador: any;
+    startups: {
+        title: string;
+        description: string;
+        features: string[];
+        freePlan: {
+            price: string;
+            cta: string;
+        };
+        proPlan: {
+            price: string;
+            cta: string;
+            features: string[];
+        };
+    };
+    investors: {
+        title: string;
+        description: string;
+        features: string[];
+        freePlan: {
+            price: string;
+            cta: string;
+        };
+        premiumPlan: {
+            price: string;
+            cta: string;
+            features: string[];
+        };
+    };
+    ambassador: {
+        title: string;
+        description: string;
+        features: string[];
+        price: string;
+        benefits: string[];
+        cta: string;
+    };
+};
+
+type PlanConfig = {
+    amountPaise: number;
+    role: UserRole;
+    planType: UserPlanType;
+    name: string;
+};
+
+type RazorpayOrderResponse = {
+    id: string;
+    amount: number;
+    currency: string;
 };
 
 @Injectable()
@@ -20,6 +68,105 @@ export class PricingService {
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
     ) { }
+
+    private readonly plans: Record<CreateOrderDto['planType'], PlanConfig> = {
+        startup_pro: {
+            amountPaise: 99900,
+            role: UserRole.STARTUP,
+            planType: UserPlanType.STARTUP_PRO,
+            name: 'Startup Pro Subscription',
+        },
+        investor_premium: {
+            amountPaise: 499900,
+            role: UserRole.INVESTOR,
+            planType: UserPlanType.INVESTOR_PREMIUM,
+            name: 'Investor Premium Subscription',
+        },
+    };
+
+    private get razorpayKeyId() {
+        return (process.env.RAZORPAY_KEY_ID || '').trim();
+    }
+
+    private get razorpayKeySecret() {
+        return (process.env.RAZORPAY_KEY_SECRET || '').trim();
+    }
+
+    private ensureRazorpayConfigured() {
+        if (!this.razorpayKeyId || !this.razorpayKeySecret) {
+            throw new InternalServerErrorException('Razorpay is not configured on the server.');
+        }
+    }
+
+    private normalizeSubscription(user: User) {
+        const wasExpired = user.subscriptionStatus === SubscriptionStatus.EXPIRED;
+
+        if (user.subscriptionEndDate && new Date(user.subscriptionEndDate).getTime() <= Date.now()) {
+            user.subscriptionStatus = SubscriptionStatus.EXPIRED;
+            user.isPremium = false;
+            user.isPaymentPending = false;
+        }
+
+        return {
+            user,
+            needsPersistence: user.subscriptionStatus === SubscriptionStatus.EXPIRED && !wasExpired,
+        };
+    }
+
+    private async getFreshUser(userId: string) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new ForbiddenException('User not found.');
+        }
+
+        const { user: normalizedUser, needsPersistence } = this.normalizeSubscription(user);
+
+        if (needsPersistence) {
+            await this.userRepository.update(
+                { id: userId },
+                {
+                    isPremium: false,
+                    isPaymentPending: false,
+                    subscriptionStatus: SubscriptionStatus.EXPIRED,
+                },
+            );
+        }
+
+        return normalizedUser;
+    }
+
+    private async createRazorpayOrder(amountPaise: number, receipt: string, userId: string, planType: CreateOrderDto['planType']) {
+        this.ensureRazorpayConfigured();
+
+        let response: Response;
+        try {
+            response = await fetch('https://api.razorpay.com/v1/orders', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Basic ${Buffer.from(`${this.razorpayKeyId}:${this.razorpayKeySecret}`).toString('base64')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: amountPaise,
+                    currency: 'INR',
+                    receipt,
+                    notes: {
+                        userId,
+                        planType,
+                    },
+                }),
+            });
+        } catch {
+            throw new BadGatewayException('Unable to reach Razorpay while creating the order.');
+        }
+
+        const payload = await response.json().catch(() => ({} as { error?: { description?: string } }));
+        if (!response.ok || !('id' in payload) || typeof payload.id !== 'string') {
+            throw new BadRequestException(payload?.error?.description || 'Unable to create Razorpay order.');
+        }
+
+        return payload as RazorpayOrderResponse;
+    }
 
     getPricing(): PricingPayload {
         return {
@@ -48,7 +195,7 @@ export class PricingService {
                 },
             },
             investors: {
-                title: 'For Investors 💼',
+                title: 'For Investors',
                 description: 'Discover the next big thing before everyone else.',
                 features: [
                     'Get advanced analytics',
@@ -72,7 +219,7 @@ export class PricingService {
                 },
             },
             ambassador: {
-                title: 'Ambassador Program 🌟',
+                title: 'Ambassador Program',
                 description: 'Be the voice of Evoa. Grow with us and earn along the way.',
                 features: [
                     'Represent Evoa in your network',
@@ -90,62 +237,162 @@ export class PricingService {
     }
 
     async createOrder(user: User, dto: CreateOrderDto) {
-        const plans = {
-            startup: {
-                amountPaise: 99900,
-                role: UserRole.STARTUP,
-                planType: UserPlanType.STARTUP,
-                name: 'Startup Pro Subscription',
-            },
-            investor: {
-                amountPaise: 499900,
-                role: UserRole.INVESTOR,
-                planType: UserPlanType.INVESTOR,
-                name: 'Investor Premium Subscription',
-            },
-        } as const;
-
-        const plan = plans[dto.planType];
+        const freshUser = await this.getFreshUser(user.id);
+        const plan = this.plans[dto.planType];
         if (!plan) {
             throw new BadRequestException('Unsupported plan type.');
         }
 
-        if (user.role !== plan.role) {
+        if (freshUser.role !== plan.role) {
             throw new ForbiddenException(`Only ${plan.role} users can create an order for this plan.`);
         }
 
-        const paymentId = `pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
+        if (dto.planType === 'investor_premium' && freshUser.isLegacyUser) {
+            throw new ForbiddenException('Existing investors do not require payment.');
+        }
+
+        if (hasActivePremiumAccess(freshUser) && freshUser.planType === plan.planType) {
+            throw new BadRequestException('An active subscription already exists for this plan.');
+        }
+
+        const existingPending = await this.pricingOrderRepository.findOne({
+            where: {
+                userId: freshUser.id,
+                planType: plan.planType,
+                subscriptionStatus: SubscriptionStatus.PENDING,
+            },
+            order: { createdAt: 'DESC' },
+        });
+
+        if (existingPending?.razorpayOrderId) {
+            return {
+                orderId: existingPending.razorpayOrderId,
+                amount: existingPending.amountPaise,
+                currency: existingPending.currency,
+                planType: dto.planType,
+                planName: plan.name,
+                razorpayKey: this.razorpayKeyId,
+                subscriptionStatus: SubscriptionStatus.PENDING,
+            };
+        }
+
+        const receipt = `${dto.planType}_${freshUser.id.slice(0, 12)}_${Date.now()}`;
+        const razorpayOrder = await this.createRazorpayOrder(plan.amountPaise, receipt, freshUser.id, dto.planType);
 
         const order = this.pricingOrderRepository.create({
-            userId: user.id,
+            userId: freshUser.id,
             planType: plan.planType,
-            paymentId,
+            razorpayOrderId: razorpayOrder.id,
+            paymentId: null,
             amountPaise: plan.amountPaise,
             currency: 'INR',
             subscriptionStatus: SubscriptionStatus.PENDING,
+            providerSignature: null,
+            verifiedAt: null,
         });
 
         await this.pricingOrderRepository.save(order);
 
         await this.userRepository.update(
-            { id: user.id },
+            { id: freshUser.id },
             {
+                isPremium: false,
                 planType: plan.planType,
                 subscriptionStatus: SubscriptionStatus.PENDING,
                 subscriptionStartDate: null,
                 subscriptionEndDate: null,
+                isPaymentPending: dto.planType === 'investor_premium',
             },
         );
 
         return {
-            paymentId,
+            orderId: razorpayOrder.id,
             planType: dto.planType,
             amount: plan.amountPaise,
             currency: 'INR',
             subscriptionStatus: SubscriptionStatus.PENDING,
-            razorpayKey: process.env.RAZORPAY_KEY_ID || null,
+            razorpayKey: this.razorpayKeyId,
             planName: plan.name,
-            note: 'Razorpay order creation is prepared. Use this payload to complete the client-side checkout flow.',
+        };
+    }
+
+    async verifyPayment(user: User, dto: VerifyPaymentDto) {
+        this.ensureRazorpayConfigured();
+        const freshUser = await this.getFreshUser(user.id);
+        const plan = this.plans[dto.planType];
+        if (!plan) {
+            throw new BadRequestException('Unsupported plan type.');
+        }
+
+        const order = await this.pricingOrderRepository.findOne({
+            where: {
+                userId: freshUser.id,
+                razorpayOrderId: dto.razorpayOrderId,
+                planType: plan.planType,
+            },
+            order: { createdAt: 'DESC' },
+        });
+
+        if (!order) {
+            throw new BadRequestException('Payment order not found.');
+        }
+
+        if (order.paymentId && order.subscriptionStatus === SubscriptionStatus.ACTIVE) {
+            return {
+                success: true,
+                message: 'Payment already verified.',
+                planType: dto.planType,
+                subscriptionStatus: SubscriptionStatus.ACTIVE,
+            };
+        }
+
+        if (order.paymentId && order.paymentId !== dto.razorpayPaymentId) {
+            throw new BadRequestException('This order is already linked to a different payment.');
+        }
+
+        if (![SubscriptionStatus.PENDING, SubscriptionStatus.ACTIVE].includes(order.subscriptionStatus)) {
+            throw new BadRequestException('This payment order is no longer valid for verification.');
+        }
+
+        const expectedSignature = createHmac('sha256', this.razorpayKeySecret)
+            .update(`${dto.razorpayOrderId}|${dto.razorpayPaymentId}`)
+            .digest('hex');
+
+        if (expectedSignature !== dto.razorpaySignature) {
+            throw new BadRequestException('Payment signature verification failed.');
+        }
+
+        const subscriptionStartDate = new Date();
+        const subscriptionEndDate = new Date(subscriptionStartDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        await this.pricingOrderRepository.update(
+            { id: order.id },
+            {
+                paymentId: dto.razorpayPaymentId,
+                providerSignature: dto.razorpaySignature,
+                subscriptionStatus: SubscriptionStatus.ACTIVE,
+                verifiedAt: subscriptionStartDate,
+            },
+        );
+
+        const userUpdate: Partial<User> = {
+            isPremium: true,
+            isPaymentPending: false,
+            planType: plan.planType,
+            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            subscriptionStartDate,
+            subscriptionEndDate,
+        };
+
+        await this.userRepository.update({ id: freshUser.id }, userUpdate);
+
+        return {
+            success: true,
+            message: 'Payment verified successfully.',
+            planType: dto.planType,
+            subscriptionStatus: SubscriptionStatus.ACTIVE,
+            subscriptionStartDate,
+            subscriptionEndDate,
         };
     }
 }

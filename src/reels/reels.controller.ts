@@ -40,6 +40,12 @@ export class ReelsController {
         return this.reelsService.getMyReels(user.id);
     }
 
+    @Get('pitch-count/me')
+    @ApiOperation({ summary: "Get current startup user's pitch count and premium status" })
+    async getPitchCount(@CurrentUser() user: User) {
+        return this.reelsService.getPitchCount(user.id);
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get a single reel by ID' })
     @ApiResponse({ status: 200, description: 'Reel retrieved successfully' })

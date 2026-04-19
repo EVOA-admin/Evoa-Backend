@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { dataSourceOptions } from './config/database.config';
 import { validate } from './config/env.validation';
+import { RedisModule } from './config/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ReelsModule } from './reels/reels.module';
@@ -38,6 +39,7 @@ import { PricingModule } from './pricing/pricing.module';
                 limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
             },
         ]),
+        RedisModule,
         AuthModule,
         UsersModule,
         ReelsModule,

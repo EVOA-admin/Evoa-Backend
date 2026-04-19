@@ -42,8 +42,8 @@ export class StartupsController {
     @Get(':id')
     @ApiOperation({ summary: 'Get startup details' })
     @ApiResponse({ status: 200, description: 'Startup retrieved successfully' })
-    async getStartup(@Param('id') startupId: string) {
-        return this.startupsService.getStartup(startupId);
+    async getStartup(@Param('id') startupId: string, @CurrentUser() user: User) {
+        return this.startupsService.getStartup(startupId, user.id);
     }
 
     @Post(':id/analyze')

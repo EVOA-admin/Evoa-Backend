@@ -21,9 +21,13 @@ export class PricingOrder {
     })
     planType: UserPlanType;
 
-    @Column({ name: 'payment_id', unique: true })
+    @Column({ name: 'razorpay_order_id', unique: true })
     @Index()
-    paymentId: string;
+    razorpayOrderId: string;
+
+    @Column({ name: 'payment_id', type: 'varchar', length: 255, unique: true, nullable: true })
+    @Index()
+    paymentId: string | null;
 
     @Column({ name: 'amount_paise', type: 'integer' })
     amountPaise: number;
@@ -38,6 +42,12 @@ export class PricingOrder {
         default: SubscriptionStatus.PENDING,
     })
     subscriptionStatus: SubscriptionStatus;
+
+    @Column({ name: 'provider_signature', type: 'varchar', length: 255, nullable: true })
+    providerSignature: string | null;
+
+    @Column({ name: 'verified_at', type: 'timestamptz', nullable: true })
+    verifiedAt: Date | null;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
