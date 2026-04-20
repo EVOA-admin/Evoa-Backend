@@ -1,7 +1,7 @@
-import { BadGatewayException, BadRequestException, ForbiddenException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHmac } from 'crypto';
+import { createHmac, randomBytes } from 'crypto';
 import { PricingOrder } from './entities/pricing-order.entity';
 import { User, UserPlanType, UserRole, SubscriptionStatus } from '../users/entities/user.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -62,6 +62,8 @@ type RazorpayOrderResponse = {
 
 @Injectable()
 export class PricingService {
+    private readonly logger = new Logger(PricingService.name);
+
     constructor(
         @InjectRepository(PricingOrder)
         private readonly pricingOrderRepository: Repository<PricingOrder>,
@@ -156,16 +158,32 @@ export class PricingService {
                     },
                 }),
             });
-        } catch {
+        } catch (error) {
+            this.logger.error(`Failed to reach Razorpay while creating order for user ${userId} and plan ${planType}`, error instanceof Error ? error.stack : undefined);
             throw new BadGatewayException('Unable to reach Razorpay while creating the order.');
         }
 
         const payload = await response.json().catch(() => ({} as { error?: { description?: string } }));
         if (!response.ok || !('id' in payload) || typeof payload.id !== 'string') {
+            this.logger.error(`Razorpay order creation failed for user ${userId} and plan ${planType}`, JSON.stringify({
+                status: response.status,
+                receipt,
+                error: payload?.error?.description || 'Unknown Razorpay error',
+            }));
             throw new BadRequestException(payload?.error?.description || 'Unable to create Razorpay order.');
         }
 
         return payload as RazorpayOrderResponse;
+    }
+
+    private generateReceipt(planType: CreateOrderDto['planType'], userId: string) {
+        const compactPlan = planType === 'investor_premium' ? 'inv' : 'stp';
+        const compactUserId = userId.replace(/-/g, '').slice(0, 10);
+        const timestamp = Date.now().toString(36);
+        const nonce = randomBytes(3).toString('hex');
+        const receipt = `${compactPlan}_${compactUserId}_${timestamp}_${nonce}`;
+
+        return receipt.slice(0, 40);
     }
 
     getPricing(): PricingPayload {
@@ -276,7 +294,7 @@ export class PricingService {
             };
         }
 
-        const receipt = `${dto.planType}_${freshUser.id.slice(0, 12)}_${Date.now()}`;
+        const receipt = this.generateReceipt(dto.planType, freshUser.id);
         const razorpayOrder = await this.createRazorpayOrder(plan.amountPaise, receipt, freshUser.id, dto.planType);
 
         const order = this.pricingOrderRepository.create({
@@ -383,6 +401,10 @@ export class PricingService {
             subscriptionStartDate,
             subscriptionEndDate,
         };
+
+        if (freshUser.role === UserRole.INVESTOR && plan.planType === UserPlanType.INVESTOR_PREMIUM) {
+            userUpdate.registrationCompleted = true;
+        }
 
         await this.userRepository.update({ id: freshUser.id }, userUpdate);
 
