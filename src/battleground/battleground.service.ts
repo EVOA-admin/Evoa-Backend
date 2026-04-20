@@ -141,12 +141,15 @@ export class BattlegroundService {
                 return {
                     id: registration.id,
                     startupId: registration.startupId,
+                    pitchId: startupReel?.id || null,
                     startupName: registration.startup?.name || 'Startup',
                     founderName:
                         registration.startup?.founders?.[0]?.name ||
                         registration.startup?.founder?.fullName ||
                         'Founder',
+                    pitchTitle: startupReel?.title || registration.startup?.name || 'Startup Pitch',
                     pitchThumbnailUrl: startupReel?.thumbnailUrl || registration.startup?.logoUrl || null,
+                    pitchVideoUrl: startupReel?.videoUrl || null,
                     verifiedAt: registration.verifiedAt,
                 };
             }),
