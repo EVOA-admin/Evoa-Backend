@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SupabaseAuthGuard } from '../auth/guards/supabase-auth.guard';
 import { BattlegroundService } from './battleground.service';
@@ -36,5 +36,11 @@ export class BattlegroundController {
     @ApiOperation({ summary: 'Mark battleground payment attempt as failed' })
     markFailed(@CurrentUser() user: User, @Body() dto: MarkBattlegroundPaymentFailedDto) {
         return this.battlegroundService.markPaymentFailed(user, dto);
+    }
+
+    @Post('select-pitch/:reelId')
+    @ApiOperation({ summary: 'Select a startup pitch for Battleground participation' })
+    selectPitch(@CurrentUser() user: User, @Param('reelId') reelId: string) {
+        return this.battlegroundService.selectPitch(user, reelId);
     }
 }

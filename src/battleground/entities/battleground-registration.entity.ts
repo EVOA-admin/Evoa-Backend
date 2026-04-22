@@ -1,6 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Startup } from '../../startups/entities/startup.entity';
+import { Reel } from '../../reels/entities/reel.entity';
 
 export enum BattlegroundPaymentStatus {
     PENDING = 'pending',
@@ -28,6 +29,14 @@ export class BattlegroundRegistration {
     @ManyToOne(() => Startup, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'startup_id' })
     startup: Startup;
+
+    @Column({ name: 'selected_reel_id', type: 'uuid', nullable: true })
+    @Index()
+    selectedReelId: string | null;
+
+    @ManyToOne(() => Reel, { onDelete: 'SET NULL', nullable: true })
+    @JoinColumn({ name: 'selected_reel_id' })
+    selectedReel: Reel | null;
 
     @Column({ name: 'razorpay_order_id', type: 'varchar', length: 255, unique: true })
     @Index()

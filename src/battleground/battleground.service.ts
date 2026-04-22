@@ -8,6 +8,7 @@ import { Startup } from '../startups/entities/startup.entity';
 import { Reel } from '../reels/entities/reel.entity';
 import { VerifyBattlegroundPaymentDto } from './dto/verify-battleground-payment.dto';
 import { MarkBattlegroundPaymentFailedDto } from './dto/mark-battleground-payment-failed.dto';
+import { hasActivePremiumAccess } from '../users/user-access.util';
 
 type RazorpayOrderResponse = {
     id: string;
@@ -55,10 +56,24 @@ export class BattlegroundService {
         return this.startupRepository.findOne({
             where: { founderId: userId },
             relations: ['founder', 'reels'],
-            order: {
-                createdAt: 'DESC',
-            },
         });
+    }
+
+    private getBattlegroundReel(startup: Startup | null | undefined, user: User) {
+        if (!startup) return null;
+
+        const reels = [...(startup.reels || [])].sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+        );
+        if (reels.length === 0) return null;
+
+        const latestReel = reels[0];
+        if (!hasActivePremiumAccess(user) || reels.length <= 1) {
+            return latestReel;
+        }
+
+        const selectedReel = reels.find((reel) => reel.id === startup.selectedBattlegroundReelId);
+        return selectedReel || latestReel;
     }
 
     private async createRazorpayOrder(userId: string, startupId: string) {
@@ -107,19 +122,21 @@ export class BattlegroundService {
             order: { verifiedAt: 'DESC', createdAt: 'DESC' },
         });
 
-        const startupIds = registrations.map((registration) => registration.startupId);
+        const startupIds = [...new Set(registrations.map((registration) => registration.startupId))];
         const reels = startupIds.length
             ? await this.reelRepository.find({
                 where: startupIds.map((startupId) => ({ startupId })),
                 relations: ['startup'],
-                order: { isFeatured: 'DESC', createdAt: 'DESC' },
+                order: { createdAt: 'DESC' },
             })
             : [];
 
-        const reelMap = new Map<string, Reel>();
+        const latestReelMap = new Map<string, Reel>();
+        const reelByIdMap = new Map<string, Reel>();
         reels.forEach((reel) => {
-            if (!reelMap.has(reel.startupId)) {
-                reelMap.set(reel.startupId, reel);
+            reelByIdMap.set(reel.id, reel);
+            if (!latestReelMap.has(reel.startupId)) {
+                latestReelMap.set(reel.startupId, reel);
             }
         });
 
@@ -136,8 +153,11 @@ export class BattlegroundService {
             canParticipate: freshUser.role === UserRole.STARTUP && !!startup,
             alreadyParticipating: currentRegistration?.paymentStatus === BattlegroundPaymentStatus.SUCCESS,
             currentStatus: currentRegistration?.paymentStatus || null,
+            selectedPitchId: startup?.selectedBattlegroundReelId || null,
             registeredStartups: registrations.map((registration) => {
-                const startupReel = reelMap.get(registration.startupId);
+                const startupReel = registration.selectedReelId
+                    ? reelByIdMap.get(registration.selectedReelId) || latestReelMap.get(registration.startupId)
+                    : latestReelMap.get(registration.startupId);
                 return {
                     id: registration.id,
                     startupId: registration.startupId,
@@ -167,6 +187,11 @@ export class BattlegroundService {
             throw new ForbiddenException('Complete your startup registration to participate in Battleground.');
         }
 
+        const selectedBattlegroundReel = this.getBattlegroundReel(startup, freshUser);
+        if (!selectedBattlegroundReel) {
+            throw new ForbiddenException('Upload a pitch before participating in Battleground.');
+        }
+
         const existingSuccessful = await this.battlegroundRegistrationRepository.findOne({
             where: {
                 startupId: startup.id,
@@ -191,6 +216,12 @@ export class BattlegroundService {
         });
 
         if (existingPending?.razorpayOrderId) {
+            if (existingPending.selectedReelId !== selectedBattlegroundReel.id) {
+                await this.battlegroundRegistrationRepository.update(
+                    { id: existingPending.id },
+                    { selectedReelId: selectedBattlegroundReel.id },
+                );
+            }
             return {
                 orderId: existingPending.razorpayOrderId,
                 amount: existingPending.amountPaise,
@@ -206,6 +237,7 @@ export class BattlegroundService {
         const registration = this.battlegroundRegistrationRepository.create({
             userId: freshUser.id,
             startupId: startup.id,
+            selectedReelId: selectedBattlegroundReel.id,
             razorpayOrderId: razorpayOrder.id,
             paymentId: null,
             amountPaise: this.amountPaise,
@@ -226,6 +258,41 @@ export class BattlegroundService {
             planName: 'Battleground Participation',
             paymentStatus: registration.paymentStatus,
             alreadyParticipating: false,
+        };
+    }
+
+    async selectPitch(user: User, reelId: string) {
+        const freshUser = await this.getFreshUser(user.id);
+        if (freshUser.role !== UserRole.STARTUP) {
+            throw new ForbiddenException('Only startup accounts can select a Battleground pitch.');
+        }
+
+        const startup = await this.getUserStartup(freshUser.id);
+        if (!startup) {
+            throw new ForbiddenException('Startup not found for this user.');
+        }
+
+        const reels = [...(startup.reels || [])].sort(
+            (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+        );
+        if (!hasActivePremiumAccess(freshUser) || reels.length <= 1) {
+            throw new ForbiddenException('Pitch selection is only available for premium startups with multiple pitches.');
+        }
+
+        const selectedReel = reels.find((reel) => reel.id === reelId);
+        if (!selectedReel) {
+            throw new BadRequestException('Selected pitch not found for this startup.');
+        }
+
+        await this.startupRepository.update(
+            { id: startup.id },
+            { selectedBattlegroundReelId: reelId },
+        );
+
+        return {
+            success: true,
+            selectedPitchId: reelId,
+            message: 'Battleground pitch selected successfully.',
         };
     }
 

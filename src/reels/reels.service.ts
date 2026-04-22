@@ -536,6 +536,12 @@ export class ReelsService {
             const { NotFoundException } = await import('@nestjs/common');
             throw new NotFoundException('Reel not found or not owned by this startup');
         }
+        if (startup.selectedBattlegroundReelId === reelId) {
+            await this.startupRepository.update(
+                { id: startup.id },
+                { selectedBattlegroundReelId: null },
+            );
+        }
         await this.reelRepository.softDelete({ id: reelId });
         await this.invalidateAllForYouCaches();
         return { message: 'Reel deleted' };

@@ -86,6 +86,9 @@ export class Startup {
     @Column({ name: 'pitch_deck_url', nullable: true })
     pitchDeckUrl: string;
 
+    @Column({ name: 'selected_battleground_reel_id', type: 'uuid', nullable: true })
+    selectedBattlegroundReelId: string | null;
+
     @Column({ type: 'jsonb', nullable: true })
     socialLinks: { linkedin?: string; instagram?: string; youtube?: string; website?: string; playStore?: string; productDemo?: string; brochure?: string };
 
