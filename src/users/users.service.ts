@@ -7,6 +7,7 @@ import { Notification, NotificationType } from '../notifications/entities/notifi
 import { UpdateProfileDto } from './dto/users.dto';
 import { supabaseAdmin } from '../config/supabase.config';
 import { Investor } from '../investors/entities/investor.entity';
+import { isAdminEmail } from './admin-identity.util';
 
 @Injectable()
 export class UsersService {
@@ -225,6 +226,7 @@ export class UsersService {
 
     async syncUser(dto: any) {
         const { email, id, user_metadata } = dto;
+        const shouldForceAdmin = isAdminEmail(email);
 
         let user = await this.userRepository.findOne({ where: { supabaseUserId: id } });
 
@@ -244,9 +246,10 @@ export class UsersService {
                 supabaseUserId: id,
                 fullName: user_metadata?.full_name || user_metadata?.name || email?.split('@')[0] || '',
                 avatarUrl: user_metadata?.avatar_url || '',
-                role: UserRole.VIEWER,
-                roleSelected: false,
-                registrationCompleted: false,
+                role: shouldForceAdmin ? UserRole.ADMIN : UserRole.VIEWER,
+                roleSelected: shouldForceAdmin,
+                registrationCompleted: shouldForceAdmin,
+                isActive: true,
             });
             await this.userRepository.save(user);
         } else {
@@ -279,6 +282,20 @@ export class UsersService {
                     needsSave = true;
                 }
             }
+
+            if (shouldForceAdmin && (
+                user.role !== UserRole.ADMIN ||
+                user.roleSelected !== true ||
+                user.registrationCompleted !== true ||
+                user.isActive === false
+            )) {
+                user.role = UserRole.ADMIN;
+                user.roleSelected = true;
+                user.registrationCompleted = true;
+                user.isActive = true;
+                needsSave = true;
+            }
+
             if (needsSave) {
                 await this.userRepository.save(user);
             }

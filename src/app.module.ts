@@ -22,6 +22,7 @@ import { ChatModule } from './chat/chat.module';
 import { AmbassadorModule } from './ambassador/ambassador.module';
 import { PricingModule } from './pricing/pricing.module';
 import { BattlegroundModule } from './battleground/battleground.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
     imports: [
@@ -58,6 +59,7 @@ import { BattlegroundModule } from './battleground/battleground.module';
         AmbassadorModule,
         PricingModule,
         BattlegroundModule,
+        AdminModule,
     ],
 })
 export class AppModule { }

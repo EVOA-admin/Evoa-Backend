@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { getSupabaseAdmin } from '../../config/supabase.config';
 import { User, UserRole } from '../../users/entities/user.entity';
+import { isAdminEmail } from '../../users/admin-identity.util';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -55,6 +56,8 @@ export class SupabaseAuthGuard implements CanActivate {
                 }
             }
 
+            const shouldForceAdmin = isAdminEmail(email);
+
             // 3. If still not found, create a new user record
             if (!user) {
                 user = this.userRepository.create({
@@ -62,10 +65,29 @@ export class SupabaseAuthGuard implements CanActivate {
                     fullName: data.user.user_metadata?.full_name || data.user.user_metadata?.name || email?.split('@')[0] || '',
                     avatarUrl: data.user.user_metadata?.avatar_url,
                     supabaseUserId,
-                    role: UserRole.VIEWER, // Default — overridden during /choice-role
-                    onboardingCompleted: false,
+                    role: shouldForceAdmin ? UserRole.ADMIN : UserRole.VIEWER,
+                    roleSelected: shouldForceAdmin,
+                    registrationCompleted: shouldForceAdmin,
+                    isActive: true,
                 });
                 await this.userRepository.save(user);
+            }
+
+            if (shouldForceAdmin && (
+                user.role !== UserRole.ADMIN ||
+                user.roleSelected !== true ||
+                user.registrationCompleted !== true ||
+                user.isActive === false
+            )) {
+                user.role = UserRole.ADMIN;
+                user.roleSelected = true;
+                user.registrationCompleted = true;
+                user.isActive = true;
+                await this.userRepository.save(user);
+            }
+
+            if (user.isActive === false) {
+                throw new UnauthorizedException('This account has been deactivated.');
             }
 
             // Attach user to request

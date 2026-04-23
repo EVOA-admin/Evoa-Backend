@@ -126,6 +126,9 @@ export class User {
     @Column({ name: 'is_legacy_user', default: false })
     isLegacyUser: boolean;
 
+    @Column({ name: 'is_active', default: true })
+    isActive: boolean;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 
