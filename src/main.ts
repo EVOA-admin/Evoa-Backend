@@ -38,6 +38,7 @@ function getAllowedOrigins() {
         'https://test.evoa.co.in',
         'https://admin.evoa.co.in',
         'https://www.admin.evoa.co.in',
+        'https://evoa-admin.vercel.app',
     ];
 
     return [...new Set([...configuredOrigins, ...localOrigins, ...productionOrigins])];
