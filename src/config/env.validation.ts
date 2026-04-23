@@ -37,6 +37,30 @@ class EnvironmentVariables {
 
     @IsOptional()
     @IsString()
+    DATABASE_POOL_MAX: string = '';
+
+    @IsOptional()
+    @IsString()
+    DATABASE_POOL_MIN: string = '';
+
+    @IsOptional()
+    @IsString()
+    DATABASE_IDLE_TIMEOUT_MS: string = '';
+
+    @IsOptional()
+    @IsString()
+    DATABASE_CONNECTION_TIMEOUT_MS: string = '';
+
+    @IsOptional()
+    @IsString()
+    DATABASE_SLOW_QUERY_MS: string = '';
+
+    @IsOptional()
+    @IsString()
+    TYPEORM_SYNCHRONIZE: string = '';
+
+    @IsOptional()
+    @IsString()
     SUPABASE_URL: string = '';
 
     @IsOptional()
