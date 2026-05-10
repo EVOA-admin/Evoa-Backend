@@ -172,6 +172,46 @@ export class PostsService {
         });
     }
 
+    async getPostById(postId: string, requestingUserId: string) {
+        const post = await this.postRepo.findOne({
+            where: { id: postId, deletedAt: IsNull() },
+            relations: ['user'],
+        });
+
+        if (!post) {
+            throw new NotFoundException('Post not found');
+        }
+
+        const [liked, startup] = await Promise.all([
+            this.postLikeRepo.findOne({ where: { postId, userId: requestingUserId } }),
+            post.startupId
+                ? this.startupRepo.findOne({ where: { id: post.startupId } })
+                : post.user?.role === 'startup'
+                    ? this.startupRepo.findOne({ where: { founderId: post.userId } })
+                    : Promise.resolve(null),
+        ]);
+
+        const basePost = { ...post, isLiked: !!liked };
+
+        if (!startup) {
+            return basePost;
+        }
+
+        return {
+            ...basePost,
+            startupId: startup.id,
+            startupName: startup.name || post.user?.fullName,
+            startupLogo: startup.logoUrl || post.user?.avatarUrl || null,
+            tagline: startup.tagline || null,
+            website: startup.website || startup.socialLinks?.website || null,
+            sectors: startup.industries?.length ? startup.industries : (startup.categoryTags || []),
+            pitchViews: 0,
+            supporters: startup.followerCount ?? 0,
+            clickThrough: post.clickThroughCount ?? 0,
+            investorThoughts: [],
+        };
+    }
+
     // ───────────────────────────────────────────────────── CREATE POST ───────
 
     async createPost(userId: string, dto: CreatePostDto) {

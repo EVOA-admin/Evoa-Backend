@@ -45,6 +45,12 @@ export class PostsController {
         return this.postsService.getUserPosts(userId, user.id);
     }
 
+    @Get(':id')
+    @ApiOperation({ summary: 'Get a single post by ID' })
+    async getPostById(@Param('id') postId: string, @CurrentUser() user: User) {
+        return this.postsService.getPostById(postId, user.id);
+    }
+
     // ── Likes ──────────────────────────────────────────────────────────────
 
     @Post(':id/like')
