@@ -35,9 +35,8 @@ lerna-debug.log*
 
 # Environment
 .env
-.env.local
-.env.development
-.env.production
+.env.*
+!.env.example
 
 # Temp
 /tmp
