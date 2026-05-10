@@ -13,41 +13,6 @@ import dns from 'dns';
 // Force IPv4 to prevent Supabase ENETUNREACH on Render
 dns.setDefaultResultOrder('ipv4first');
 
-function getAllowedOrigins() {
-    const configuredOrigins = (process.env.CORS_ORIGIN || '')
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean);
-
-    const localOrigins = [
-        'http://localhost:3000',
-        'http://localhost:4173',
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:5175',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:4173',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-        'http://127.0.0.1:5175',
-    ];
-
-    const productionOrigins = [
-        'https://evoa.co.in',
-        'https://www.evoa.co.in',
-        'https://test.evoa.co.in',
-        'https://admin.evoa.co.in',
-        'https://www.admin.evoa.co.in',
-        'https://evoa-admin.vercel.app',
-    ];
-
-    return [...new Set([...configuredOrigins, ...localOrigins, ...productionOrigins])];
-}
-
-function isLoopbackOrigin(origin: string) {
-    return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-}
-
 async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
@@ -57,27 +22,12 @@ async function bootstrap() {
     // Security
     app.use(helmet());
 
-    // CORS - Support multiple origins
+    // CORS - Reflect request origins so browser preflight succeeds on Vercel/Render.
     app.enableCors({
-        origin: (origin, callback) => {
-            if (!origin) {
-                callback(null, true);
-                return;
-            }
-
-            const allowedOrigins = getAllowedOrigins();
-            if (allowedOrigins.includes(origin) || isLoopbackOrigin(origin)) {
-                callback(null, true);
-                return;
-            }
-
-            callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
-        },
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+        origin: true,
         credentials: true,
-        preflightContinue: false,
-        optionsSuccessStatus: 204,
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+        allowedHeaders: 'Content-Type, Accept, Authorization',
     });
 
     // Compression
@@ -126,8 +76,9 @@ async function bootstrap() {
         });
     });
 
+    await app.listen(process.env.PORT || 3000);
+
     const port = process.env.PORT || 3000;
-    await app.listen(port);
 
     console.log(`
   🚀 EVOA Backend is running!
