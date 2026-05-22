@@ -26,6 +26,10 @@ export class Post {
     @Column({ name: 'image_url', nullable: true })
     imageUrl: string;
 
+    /** Array of image URLs for multi-photo posts (carousel). Populated alongside imageUrl (first element). */
+    @Column({ name: 'image_urls', type: 'text', array: true, default: '{}' })
+    imageUrls: string[];
+
     @Column({ type: 'text', nullable: true })
     caption: string;
 

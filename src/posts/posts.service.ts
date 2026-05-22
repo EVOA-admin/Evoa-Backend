@@ -222,10 +222,19 @@ export class PostsService {
             if (startup) startupId = startup.id;
         } catch (_) { /* non-critical */ }
 
+        // Normalise image fields:
+        //   - imageUrls takes priority when supplied (multi-photo)
+        //   - imageUrl is kept as the primary/first image for backwards compat
+        const imageUrls = dto.imageUrls?.length
+            ? dto.imageUrls
+            : dto.imageUrl ? [dto.imageUrl] : [];
+        const imageUrl = imageUrls[0] ?? dto.imageUrl ?? null;
+
         const post = this.postRepo.create({
             userId,
             ...(startupId ? { startupId } : {}),
-            imageUrl: dto.imageUrl,
+            imageUrl,
+            imageUrls,
             caption: dto.caption || '',
             hashtags: (dto.hashtags || []).map(h => h.replace(/^#/, '').toLowerCase()),
         });
