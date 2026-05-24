@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Startup } from './entities/startup.entity';
+import { StartupProfileVisit } from './entities/startup-profile-visit.entity';
 import { Follow } from './entities/follow.entity';
 import { Reel } from '../reels/entities/reel.entity';
 import { User } from '../users/entities/user.entity';
@@ -13,6 +14,8 @@ export class StartupsService {
     constructor(
         @InjectRepository(Startup)
         private readonly startupRepository: Repository<Startup>,
+        @InjectRepository(StartupProfileVisit)
+        private readonly startupProfileVisitRepository: Repository<StartupProfileVisit>,
         @InjectRepository(Follow)
         private readonly followRepository: Repository<Follow>,
         @InjectRepository(Reel)
@@ -235,6 +238,60 @@ export class StartupsService {
         }
 
         return startup;
+    }
+
+    async getRankedStartups() {
+        const startups = await this.startupRepository.find({
+            order: {
+                followerCount: 'DESC',
+                createdAt: 'ASC',
+                name: 'ASC',
+            },
+        });
+
+        return startups.map((startup, index) => ({
+            startupId: startup.id,
+            founderId: startup.founderId,
+            name: startup.name || 'Startup',
+            username: startup.username || null,
+            logoUrl: startup.logoUrl || null,
+            tagline: startup.tagline || null,
+            trendingScore: Number(startup.followerCount || 0),
+            metrics: {
+                posts: 0,
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                profileVisits: 0,
+                activeDays: 0,
+                supporters: Number(startup.followerCount || 0),
+            },
+            rank: index + 1,
+        }));
+    }
+
+    async recordProfileVisit(startupId: string, visitorId: string) {
+        const startup = await this.startupRepository.findOne({
+            where: { id: startupId },
+            select: ['id', 'founderId'],
+        });
+        if (!startup) throw new NotFoundException('Startup not found');
+        if (startup.founderId === visitorId) {
+            return { message: 'Own profile visits are ignored' };
+        }
+
+        const visitDate = new Date().toISOString().slice(0, 10);
+        const existing = await this.startupProfileVisitRepository.findOne({
+            where: { startupId, visitorId, visitDate },
+        });
+
+        if (!existing) {
+            await this.startupProfileVisitRepository.save(
+                this.startupProfileVisitRepository.create({ startupId, visitorId, visitDate }),
+            );
+        }
+
+        return { message: 'Profile visit recorded' };
     }
 
     async getFollowStatus(startupId: string, userId: string) {

@@ -27,6 +27,12 @@ export class PostsController {
         return this.postsService.createPost(user.id, dto);
     }
 
+    @Get('rising-startups')
+    @ApiOperation({ summary: 'Get platform-wide ranked startups from the last 7 days of startup activity' })
+    async getRisingStartups() {
+        return this.postsService.getRisingStartups();
+    }
+
     @Delete(':id')
     @ApiOperation({ summary: 'Delete own post (soft delete)' })
     async deletePost(@Param('id') postId: string, @CurrentUser() user: User) {
@@ -77,6 +83,16 @@ export class PostsController {
     @ApiOperation({ summary: 'Record a post view — increments viewCount' })
     async recordPostView(@Param('id') postId: string) {
         return this.postsService.recordPostView(postId);
+    }
+
+    @Post(':id/share')
+    @ApiOperation({ summary: 'Record a post share with basic duplicate-abuse protection' })
+    async sharePost(
+        @Param('id') postId: string,
+        @CurrentUser() user: User,
+        @Body('platform') platform?: string,
+    ) {
+        return this.postsService.sharePost(postId, user.id, platform);
     }
 
     // ── Comments ────────────────────────────────────────────────────────────

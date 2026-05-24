@@ -39,11 +39,24 @@ export class StartupsController {
         return this.startupsService.publishPitchReel(user.id);
     }
 
+    @Get('ranked')
+    @ApiOperation({ summary: 'Get all startups ranked for listing' })
+    @ApiResponse({ status: 200, description: 'Ranked startups retrieved successfully' })
+    async getRankedStartups() {
+        return this.startupsService.getRankedStartups();
+    }
+
     @Get(':id')
     @ApiOperation({ summary: 'Get startup details' })
     @ApiResponse({ status: 200, description: 'Startup retrieved successfully' })
     async getStartup(@Param('id') startupId: string, @CurrentUser() user: User) {
         return this.startupsService.getStartup(startupId, user.id);
+    }
+
+    @Post(':id/profile-visit')
+    @ApiOperation({ summary: 'Record a startup profile visit with lightweight duplicate protection' })
+    async recordProfileVisit(@Param('id') startupId: string, @CurrentUser() user: User) {
+        return this.startupsService.recordProfileVisit(startupId, user.id);
     }
 
     @Post(':id/analyze')

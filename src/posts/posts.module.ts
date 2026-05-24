@@ -5,7 +5,13 @@ import { PostLike } from './entities/post-like.entity';
 import { PostSave } from './entities/post-save.entity';
 import { PostComment } from './entities/post-comment.entity';
 import { PostWebsiteClick } from './entities/post-website-click.entity';
+import { PostShare } from './entities/post-share.entity';
 import { Startup } from '../startups/entities/startup.entity';
+import { StartupProfileVisit } from '../startups/entities/startup-profile-visit.entity';
+import { Reel } from '../reels/entities/reel.entity';
+import { ReelLike } from '../reels/entities/reel-like.entity';
+import { ReelComment } from '../reels/entities/reel-comment.entity';
+import { ReelShare } from '../reels/entities/reel-share.entity';
 import { ReelView } from '../reels/entities/reel-view.entity';
 import { User } from '../users/entities/user.entity';
 import { Notification } from '../notifications/entities/notification.entity';
@@ -21,7 +27,13 @@ import { AuthModule } from '../auth/auth.module';
             PostSave,
             PostComment,
             PostWebsiteClick,
+            PostShare,
             Startup,
+            StartupProfileVisit,
+            Reel,
+            ReelLike,
+            ReelComment,
+            ReelShare,
             ReelView,
             User,
             Notification,

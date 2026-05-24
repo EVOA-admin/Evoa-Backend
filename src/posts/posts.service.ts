@@ -6,7 +6,13 @@ import { PostLike } from './entities/post-like.entity';
 import { PostSave } from './entities/post-save.entity';
 import { PostComment } from './entities/post-comment.entity';
 import { PostWebsiteClick } from './entities/post-website-click.entity';
+import { PostShare } from './entities/post-share.entity';
 import { Startup } from '../startups/entities/startup.entity';
+import { StartupProfileVisit } from '../startups/entities/startup-profile-visit.entity';
+import { Reel } from '../reels/entities/reel.entity';
+import { ReelLike } from '../reels/entities/reel-like.entity';
+import { ReelComment } from '../reels/entities/reel-comment.entity';
+import { ReelShare } from '../reels/entities/reel-share.entity';
 import { ReelView } from '../reels/entities/reel-view.entity';
 import { User } from '../users/entities/user.entity';
 import { Notification, NotificationType } from '../notifications/entities/notification.entity';
@@ -25,8 +31,20 @@ export class PostsService {
         private readonly postCommentRepo: Repository<PostComment>,
         @InjectRepository(PostWebsiteClick)
         private readonly clickRepo: Repository<PostWebsiteClick>,
+        @InjectRepository(PostShare)
+        private readonly postShareRepo: Repository<PostShare>,
         @InjectRepository(Startup)
         private readonly startupRepo: Repository<Startup>,
+        @InjectRepository(StartupProfileVisit)
+        private readonly startupProfileVisitRepo: Repository<StartupProfileVisit>,
+        @InjectRepository(Reel)
+        private readonly reelRepo: Repository<Reel>,
+        @InjectRepository(ReelLike)
+        private readonly reelLikeRepo: Repository<ReelLike>,
+        @InjectRepository(ReelComment)
+        private readonly reelCommentRepo: Repository<ReelComment>,
+        @InjectRepository(ReelShare)
+        private readonly reelShareRepo: Repository<ReelShare>,
         @InjectRepository(ReelView)
         private readonly reelViewRepo: Repository<ReelView>,
         @InjectRepository(User)
@@ -49,6 +67,243 @@ export class PostsService {
     }
 
     // ─────────────────────────────────────────────────── GET ALL POSTS ──────
+
+    async getRisingStartups() {
+        const since = new Date();
+        since.setDate(since.getDate() - 7);
+
+        const startups = await this.startupRepo.find({
+            where: { deletedAt: IsNull() },
+            order: { name: 'ASC' },
+        });
+
+        if (!startups.length) return [];
+
+        const startupMap = new Map<string, any>();
+        const startupIds = startups.map((startup) => startup.id);
+
+        startups.forEach((startup) => {
+            startupMap.set(startup.id, {
+                startupId: startup.id,
+                founderId: startup.founderId,
+                name: startup.name || 'Startup',
+                username: startup.username || null,
+                logoUrl: startup.logoUrl || null,
+                tagline: startup.tagline || null,
+                postCount: 0,
+                activeDays: new Set<string>(),
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                profileVisits: 0,
+            });
+        });
+
+        const allPosts = await this.postRepo
+            .createQueryBuilder('post')
+            .innerJoin('post.user', 'user')
+            .leftJoin(Startup, 'startup', 'startup.id = post.startup_id OR startup.founder_id = post.user_id')
+            .select([
+                'post.id AS "postId"',
+                'post.user_id AS "userId"',
+                'post.created_at AS "createdAt"',
+                'startup.id AS "startupId"',
+                'startup.founder_id AS "founderId"',
+                'startup.name AS "startupName"',
+                'startup.username AS "username"',
+                'startup.logo_url AS "logoUrl"',
+                'startup.tagline AS "tagline"',
+            ])
+            .where('post.deleted_at IS NULL')
+            .andWhere("(post.startup_id IS NOT NULL OR user.role = 'startup')")
+            .andWhere('startup.deleted_at IS NULL')
+            .andWhere('post.created_at >= :since', { since })
+            .orderBy('post.created_at', 'DESC')
+            .getRawMany();
+
+        const postIds = allPosts.map((post) => post.postId);
+        const allReels = await this.reelRepo
+            .createQueryBuilder('reel')
+            .select([
+                'reel.id AS "reelId"',
+                'reel.startup_id AS "startupId"',
+                'reel.created_at AS "createdAt"',
+            ])
+            .where('reel.deleted_at IS NULL')
+            .andWhere('reel.startup_id IN (:...startupIds)', { startupIds })
+            .andWhere('reel.created_at >= :since', { since })
+            .orderBy('reel.created_at', 'DESC')
+            .getRawMany();
+        const reelIds = allReels.map((reel) => reel.reelId);
+
+        for (const post of allPosts) {
+            if (!post.startupId) continue;
+            const startup = startupMap.get(post.startupId);
+            if (!startup) continue;
+            startup.postCount += 1;
+            startup.activeDays.add(new Date(post.createdAt).toISOString().slice(0, 10));
+        }
+
+        for (const reel of allReels) {
+            if (!reel.startupId) continue;
+            const startup = startupMap.get(reel.startupId);
+            if (!startup) continue;
+            startup.postCount += 1;
+            startup.activeDays.add(new Date(reel.createdAt).toISOString().slice(0, 10));
+        }
+
+        const likes = postIds.length
+            ? await this.postLikeRepo
+                .createQueryBuilder('like')
+                .innerJoin('like.post', 'post')
+                .leftJoin(Startup, 'startup', 'startup.id = post.startup_id OR startup.founder_id = post.user_id')
+                .select('startup.id', 'startupId')
+                .addSelect('COUNT(like.id)', 'count')
+                .where('post.deleted_at IS NULL')
+                .andWhere('post.id IN (:...postIds)', { postIds })
+                .andWhere('like.user_id <> post.user_id')
+                .andWhere('like.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const comments = postIds.length
+            ? await this.postCommentRepo
+                .createQueryBuilder('comment')
+                .innerJoin('comment.post', 'post')
+                .leftJoin(Startup, 'startup', 'startup.id = post.startup_id OR startup.founder_id = post.user_id')
+                .select('startup.id', 'startupId')
+                .addSelect(`COUNT(DISTINCT CONCAT(comment.user_id, ':', comment.post_id, ':', DATE(comment.created_at)))`, 'count')
+                .where('comment.deleted_at IS NULL')
+                .andWhere('post.deleted_at IS NULL')
+                .andWhere('post.id IN (:...postIds)', { postIds })
+                .andWhere('comment.user_id <> post.user_id')
+                .andWhere('comment.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const shares = postIds.length
+            ? await this.postShareRepo
+                .createQueryBuilder('share')
+                .innerJoin('share.post', 'post')
+                .leftJoin(Startup, 'startup', 'startup.id = post.startup_id OR startup.founder_id = post.user_id')
+                .select('startup.id', 'startupId')
+                .addSelect('COUNT(share.id)', 'count')
+                .where('post.deleted_at IS NULL')
+                .andWhere('post.id IN (:...postIds)', { postIds })
+                .andWhere('share.user_id <> post.user_id')
+                .andWhere('share.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const profileVisits = await this.startupProfileVisitRepo
+            .createQueryBuilder('visit')
+            .select('visit.startup_id', 'startupId')
+            .addSelect('COUNT(visit.id)', 'count')
+            .where('visit.startup_id IN (:...startupIds)', { startupIds })
+            .andWhere('visit.created_at >= :since', { since })
+            .groupBy('visit.startup_id')
+            .getRawMany();
+
+        const reelLikes = reelIds.length
+            ? await this.reelLikeRepo
+                .createQueryBuilder('like')
+                .innerJoin('like.reel', 'reel')
+                .innerJoin('reel.startup', 'startup')
+                .select('startup.id', 'startupId')
+                .addSelect('COUNT(like.id)', 'count')
+                .where('reel.deleted_at IS NULL')
+                .andWhere('reel.id IN (:...reelIds)', { reelIds })
+                .andWhere('like.user_id <> startup.founder_id')
+                .andWhere('like.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const reelComments = reelIds.length
+            ? await this.reelCommentRepo
+                .createQueryBuilder('comment')
+                .innerJoin('comment.reel', 'reel')
+                .innerJoin('reel.startup', 'startup')
+                .select('startup.id', 'startupId')
+                .addSelect(`COUNT(DISTINCT CONCAT(comment.user_id, ':', comment.reel_id, ':', DATE(comment.created_at)))`, 'count')
+                .where('comment.deleted_at IS NULL')
+                .andWhere('reel.deleted_at IS NULL')
+                .andWhere('reel.id IN (:...reelIds)', { reelIds })
+                .andWhere('comment.user_id <> startup.founder_id')
+                .andWhere('comment.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const reelShares = reelIds.length
+            ? await this.reelShareRepo
+                .createQueryBuilder('share')
+                .innerJoin('share.reel', 'reel')
+                .innerJoin('reel.startup', 'startup')
+                .select('startup.id', 'startupId')
+                .addSelect('COUNT(share.id)', 'count')
+                .where('reel.deleted_at IS NULL')
+                .andWhere('reel.id IN (:...reelIds)', { reelIds })
+                .andWhere('share.user_id <> startup.founder_id')
+                .andWhere('share.created_at >= :since', { since })
+                .groupBy('startup.id')
+                .getRawMany()
+            : [];
+
+        const applyCount = (rows: { startupId: string; count: string }[], key: 'likes' | 'comments' | 'shares' | 'profileVisits') => {
+            rows.forEach((row) => {
+                const startup = startupMap.get(row.startupId);
+                if (startup) startup[key] += Number(row.count || 0);
+            });
+        };
+
+        applyCount(likes, 'likes');
+        applyCount(comments, 'comments');
+        applyCount(shares, 'shares');
+        applyCount(profileVisits, 'profileVisits');
+        applyCount(reelLikes, 'likes');
+        applyCount(reelComments, 'comments');
+        applyCount(reelShares, 'shares');
+
+        return Array.from(startupMap.values())
+            .map((startup) => {
+                const consistencyDays = startup.activeDays.size;
+                const trendingScore = (startup.postCount * 5)
+                    + startup.likes
+                    + (startup.comments * 3)
+                    + (startup.shares * 4)
+                    + (startup.profileVisits * 2)
+                    + consistencyDays;
+
+                return {
+                    startupId: startup.startupId,
+                    founderId: startup.founderId,
+                    name: startup.name,
+                    username: startup.username,
+                    logoUrl: startup.logoUrl,
+                    tagline: startup.tagline,
+                    trendingScore,
+                    metrics: {
+                        posts: startup.postCount,
+                        likes: startup.likes,
+                        comments: startup.comments,
+                        shares: startup.shares,
+                        profileVisits: startup.profileVisits,
+                        activeDays: consistencyDays,
+                    },
+                };
+            })
+            .sort((a, b) => {
+                if (b.trendingScore !== a.trendingScore) return b.trendingScore - a.trendingScore;
+                if (b.metrics.posts !== a.metrics.posts) return b.metrics.posts - a.metrics.posts;
+                if (b.metrics.profileVisits !== a.metrics.profileVisits) return b.metrics.profileVisits - a.metrics.profileVisits;
+                return a.name.localeCompare(b.name);
+            })
+            .map((startup, index) => ({ ...startup, rank: index + 1 }));
+    }
 
     async getAllPosts(requestingUserId: string, limit = 50, offset = 0) {
         const posts = await this.postRepo.find({
@@ -342,6 +597,21 @@ export class PostsService {
     async recordPostView(postId: string) {
         await this.postRepo.increment({ id: postId }, 'viewCount', 1);
         return { message: 'View recorded' };
+    }
+
+    async sharePost(postId: string, userId: string, platform = 'copy_link') {
+        const post = await this.postRepo.findOne({ where: { id: postId, deletedAt: IsNull() } });
+        if (!post) throw new NotFoundException('Post not found');
+
+        const shareDate = new Date().toISOString().slice(0, 10);
+        const existing = await this.postShareRepo.findOne({ where: { postId, userId, shareDate } });
+
+        if (!existing) {
+            await this.postShareRepo.save(this.postShareRepo.create({ postId, userId, platform, shareDate }));
+            await this.postRepo.increment({ id: postId }, 'shareCount', 1);
+        }
+
+        return { message: 'Post shared', shareCount: post.shareCount + (existing ? 0 : 1) };
     }
 
 

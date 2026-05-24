@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StartupsController } from './startups.controller';
 import { StartupsService } from './startups.service';
 import { Startup } from './entities/startup.entity';
+import { StartupProfileVisit } from './entities/startup-profile-visit.entity';
 import { Follow } from './entities/follow.entity';
 import { Reel } from '../reels/entities/reel.entity';
 import { Notification } from '../notifications/entities/notification.entity';
@@ -14,7 +15,7 @@ import { AiModule } from '../ai/ai.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Startup, Follow, Reel, Notification, User]),
+        TypeOrmModule.forFeature([Startup, StartupProfileVisit, Follow, Reel, Notification, User]),
         UsersModule,
         AuthModule,
         AiModule,
