@@ -33,6 +33,16 @@ export class PostsController {
         return this.postsService.getRisingStartups();
     }
 
+    @Get('debug-rising')
+    async debugRising() {
+        try {
+            const data = await this.postsService.getRisingStartups();
+            return { ok: true, data };
+        } catch (e) {
+            return { ok: false, message: e.message, stack: e.stack };
+        }
+    }
+
     @Delete(':id')
     @ApiOperation({ summary: 'Delete own post (soft delete)' })
     async deletePost(@Param('id') postId: string, @CurrentUser() user: User) {
