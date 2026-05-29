@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException, ForbiddenException, Optional, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Startup } from './entities/startup.entity';
 import { StartupProfileVisit } from './entities/startup-profile-visit.entity';
 import { Follow } from './entities/follow.entity';
@@ -242,6 +242,7 @@ export class StartupsService {
 
     async getRankedStartups() {
         const startups = await this.startupRepository.find({
+            where: { deletedAt: IsNull() },
             order: {
                 followerCount: 'DESC',
                 createdAt: 'ASC',
