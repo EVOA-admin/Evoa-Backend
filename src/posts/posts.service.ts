@@ -112,6 +112,9 @@ export class PostsService {
                     'post.user_id AS "userId"',
                     'post.startup_id AS "startupId"',
                     'post.created_at AS "createdAt"',
+                    'post.like_count AS "likeCount"',
+                    'post.comment_count AS "commentCount"',
+                    'post.share_count AS "shareCount"',
                 ])
                 .where('post.deleted_at IS NULL')
                 .andWhere("(post.startup_id IS NOT NULL OR user.role = 'startup')")
@@ -123,19 +126,17 @@ export class PostsService {
                     'reel.id AS "reelId"',
                     'reel.startup_id AS "startupId"',
                     'reel.created_at AS "createdAt"',
+                    'reel.like_count AS "likeCount"',
+                    'reel.comment_count AS "commentCount"',
+                    'reel.share_count AS "shareCount"',
+                    'reel.view_count AS "viewCount"',
                 ])
                 .where('reel.deleted_at IS NULL')
                 .andWhere('reel.startup_id IN (:...startupIds)', { startupIds })
                 .getRawMany(),
         ]);
 
-        console.log('[RisingStartups] posts this week:', allPostRows.length, '| all reels:', allReelRows.length);
-        const reelIds = allReelRows.map((r) => r.reelId);
-
         // Build postId → startupId map and accumulate posting activity.
-        // BUG FIX: old code did `if (!post.startupId) continue`, silently dropping
-        // posts by startup founders whose posts had no startup_id column value.
-        // We now fall back to founderToStartupId to resolve those posts.
         const postToStartupId = new Map<string, string>();
         for (const post of allPostRows) {
             const resolvedId = post.startupId || founderToStartupId.get(post.userId);
@@ -143,135 +144,36 @@ export class PostsService {
             postToStartupId.set(post.postId, resolvedId);
             const s = startupMap.get(resolvedId);
             s.postCount += 1;
+            s.likes += Number(post.likeCount || 0);
+            s.comments += Number(post.commentCount || 0);
+            s.shares += Number(post.shareCount || 0);
             s.activeDays.add(new Date(post.createdAt).toISOString().slice(0, 10));
         }
 
-        // Reels count toward postCount + activeDays
+        // Reels count toward postCount + activeDays + engagements
         for (const reel of allReelRows) {
             if (!reel.startupId || !startupMap.has(reel.startupId)) continue;
             const s = startupMap.get(reel.startupId);
             s.postCount += 1;
+            s.likes += Number(reel.likeCount || 0);
+            s.comments += Number(reel.commentCount || 0);
+            s.shares += Number(reel.shareCount || 0);
             s.activeDays.add(new Date(reel.createdAt).toISOString().slice(0, 10));
         }
 
-        console.log('[RisingStartups] resolved post→startup mappings:', postToStartupId.size);
-        const resolvedPostIds = Array.from(postToStartupId.keys());
+        // We only need profile visits since it's not cached on the startup entity
+        const profileVisits = await this.startupProfileVisitRepo
+            .createQueryBuilder('visit')
+            .select('visit.startup_id', 'startupId')
+            .addSelect('COUNT(visit.id)', 'count')
+            .where('visit.startup_id IN (:...ids)', { ids: startupIds })
+            .groupBy('visit.startup_id')
+            .getRawMany();
 
-        // Run all 7 engagement queries in parallel.
-        // BUG FIX for reels: filter by ENGAGEMENT date (like.created_at >= since),
-        // NOT by reel creation date — so new engagement on old reels counts.
-        const [
-            postLikes, postComments, postShares,
-            profileVisits,
-            reelLikes, reelComments, reelShares,
-        ] = await Promise.all([
-            resolvedPostIds.length
-                ? this.postLikeRepo
-                    .createQueryBuilder('like')
-                    .select('like.post_id', 'postId')
-                    .addSelect('COUNT(like.id)', 'count')
-                    .where('like.post_id IN (:...ids)', { ids: resolvedPostIds })
-                    .groupBy('like.post_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-
-            resolvedPostIds.length
-                ? this.postCommentRepo
-                    .createQueryBuilder('comment')
-                    .innerJoin('comment.post', 'post')
-                    .select('comment.post_id', 'postId')
-                    .addSelect('COUNT(comment.id)', 'count')
-                    .where('comment.post_id IN (:...ids)', { ids: resolvedPostIds })
-                    .andWhere('comment.deleted_at IS NULL')
-                    .andWhere('comment.user_id <> post.user_id')
-                    .groupBy('comment.post_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-
-            resolvedPostIds.length
-                ? this.postShareRepo
-                    .createQueryBuilder('share')
-                    .innerJoin('share.post', 'post')
-                    .select('share.post_id', 'postId')
-                    .addSelect('COUNT(share.id)', 'count')
-                    .where('share.post_id IN (:...ids)', { ids: resolvedPostIds })
-                    .andWhere('share.user_id <> post.user_id')
-                    .groupBy('share.post_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-
-            this.startupProfileVisitRepo
-                .createQueryBuilder('visit')
-                .select('visit.startup_id', 'startupId')
-                .addSelect('COUNT(visit.id)', 'count')
-                .where('visit.startup_id IN (:...ids)', { ids: startupIds })
-                .groupBy('visit.startup_id')
-                .getRawMany(),
-
-            reelIds.length
-                ? this.reelLikeRepo
-                    .createQueryBuilder('like')
-                    .innerJoin('like.reel', 'reel')
-                    .select('reel.startup_id', 'startupId')
-                    .addSelect('COUNT(like.id)', 'count')
-                    .where('reel.startup_id IN (:...ids)', { ids: startupIds })
-                    .andWhere('reel.deleted_at IS NULL')
-                    .groupBy('reel.startup_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-
-            reelIds.length
-                ? this.reelCommentRepo
-                    .createQueryBuilder('comment')
-                    .innerJoin('comment.reel', 'reel')
-                    .select('reel.startup_id', 'startupId')
-                    .addSelect('COUNT(comment.id)', 'count')
-                    .where('reel.startup_id IN (:...ids)', { ids: startupIds })
-                    .andWhere('comment.deleted_at IS NULL')
-                    .andWhere('reel.deleted_at IS NULL')
-                    .groupBy('reel.startup_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-
-            reelIds.length
-                ? this.reelShareRepo
-                    .createQueryBuilder('share')
-                    .innerJoin('share.reel', 'reel')
-                    .select('reel.startup_id', 'startupId')
-                    .addSelect('COUNT(share.id)', 'count')
-                    .where('reel.startup_id IN (:...ids)', { ids: startupIds })
-                    .andWhere('reel.deleted_at IS NULL')
-                    .groupBy('reel.startup_id')
-                    .getRawMany()
-                : Promise.resolve([]),
-        ]);
-
-        console.log('[RisingStartups] engagement counts — postLikes:', postLikes.length, 'reelLikes:', reelLikes.length, 'profileVisits:', profileVisits.length);
-
-        // Apply post-level engagement via postToStartupId (fixes join-miss attribution bug)
-        const applyPost = (rows: { postId: string; count: string }[], key: 'likes' | 'comments' | 'shares') => {
-            for (const row of rows) {
-                const sid = postToStartupId.get(row.postId);
-                if (!sid) continue;
-                const s = startupMap.get(sid);
-                if (s) s[key] += Number(row.count || 0);
-            }
-        };
-        // Apply startup-level engagement (profile visits, reel metrics)
-        const applyStartup = (rows: { startupId: string; count: string }[], key: 'likes' | 'comments' | 'shares' | 'profileVisits') => {
-            for (const row of rows) {
-                const s = startupMap.get(row.startupId);
-                if (s) s[key] += Number(row.count || 0);
-            }
-        };
-
-        applyPost(postLikes, 'likes');
-        applyPost(postComments, 'comments');
-        applyPost(postShares, 'shares');
-        applyStartup(profileVisits, 'profileVisits');
-        applyStartup(reelLikes, 'likes');
-        applyStartup(reelComments, 'comments');
-        applyStartup(reelShares, 'shares');
+        for (const row of profileVisits) {
+            const s = startupMap.get(row.startupId);
+            if (s) s.profileVisits += Number(row.count || 0);
+        }
 
         // Score weights: posts×10 + likes×2 + comments×5 + shares×8 + profileVisits×3 + activeDays×5
         return Array.from(startupMap.values())
